@@ -12,8 +12,21 @@ on a schedule rather than calling the endpoints on every request.
 
 Usage:
     python verify-googlebot-ip.py <ip>
+    python3 verify-googlebot-ip.py <ip>
 
 Exits 0 if the IP is in a published range, 1 otherwise.
+
+macOS note: if you see "SSL: CERTIFICATE_VERIFY_FAILED", the Python.org
+installer does not register with the system trust store. Fix with either:
+
+    pip install certifi
+    pip3 install certifi
+
+or run the bundled certificate installer that ships with Python.org builds:
+
+    /Applications/Python\\ 3.x/Install\\ Certificates.command
+
+This script will automatically use certifi's CA bundle if it is installed.
 
 Reference: SEO for Engineers, Volume 1, Chapter 1.
 """
@@ -23,6 +36,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import json
+import ssl
 import sys
 import urllib.request
 
@@ -39,9 +53,23 @@ SOURCES = {
 }
 
 
-def fetch_ranges(url: str) -> list[str]:
+def build_ssl_context() -> ssl.SSLContext:
+    """Build an SSL context that uses certifi's CA bundle when available.
+
+    On macOS, the Python.org installer ships without registering with the
+    system trust store, which causes CERTIFICATE_VERIFY_FAILED errors. If
+    certifi is installed, point OpenSSL at its bundled roots.
+    """
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+def fetch_ranges(url: str, context: ssl.SSLContext) -> list[str]:
     """Fetch and parse a Google IP-ranges JSON file."""
-    with urllib.request.urlopen(url, timeout=10) as resp:
+    with urllib.request.urlopen(url, timeout=10, context=context) as resp:
         data = json.load(resp)
     return [
         prefix.get("ipv6Prefix") or prefix.get("ipv4Prefix")
@@ -63,9 +91,11 @@ def main() -> int:
     parser.add_argument("ip", help="IP address to check")
     args = parser.parse_args()
 
+    context = build_ssl_context()
+
     for name, url in SOURCES.items():
         try:
-            ranges = fetch_ranges(url)
+            ranges = fetch_ranges(url, context)
         except Exception as exc:
             print(f"Could not fetch {name} ranges: {exc}", file=sys.stderr)
             continue
