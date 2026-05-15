@@ -11,7 +11,7 @@ the chapters argue should be done.
 **Volume 1, *Code and Craft*, is feature-complete.** All 19 chapter
 directories are shipped under [`volume-1-code-and-craft/`](volume-1-code-and-craft/).
 
-Volume 2, *Systems and Operations*, is in progress.
+Volume 2, is in progress.
 
 ## What this repository is for
 
