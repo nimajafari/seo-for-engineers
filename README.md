@@ -1,14 +1,14 @@
 # SEO for Engineers
 
 This repository is the operational complement to *SEO for Engineers* by
-Bartosz Goralewicz. Every code block in the book that is worth running
+Nima Jafari. Every code block in the book that is worth running
 in production has a tested, packaged version in this repository. The
 chapter directories follow the book's structure; the code does the work
 the chapters argue should be done.
 
 ## Status
 
-**Volume 1, *Code and Craft*, is feature-complete.** All 19 chapter
+**Volume 1, *Code and Craft*, is in progress.** 
 directories are shipped under [`volume-1-code-and-craft/`](volume-1-code-and-craft/).
 
 Volume 2, is in progress.
