@@ -1,19 +1,19 @@
 # Makefile, top-level test orchestration for SEO for Engineers
 #
 # Conventions:
-#   - Every chapter has a `test-NN` target that runs its smoke tests.
-#   - `test-all` runs everything in chapter order.
-#   - `test CHAPTER=chapter-NN-topic` runs a single chapter.
-#   - `lint` runs format and lint checks across the repository.
-#   - Targets that depend on live external services (Google IP ranges,
-#     CMS APIs, Search Console) are gated by environment variables and
-#     skipped gracefully when those are unset.
-#
+   - Every chapter has a `test-NN` target that runs its smoke tests.
+   - `test-all` runs everything in chapter order.
+   - `test CHAPTER=chapter-NN-topic` runs a single chapter.
+   - `lint` runs format and lint checks across the repository.
+   - Targets that depend on live external services (Google IP ranges,
+     CMS APIs, Search Console) are gated by environment variables and
+     skipped gracefully when those are unset.
+
 # Requirements:
-#   - Python 3.11+ with venv module
-#   - Node 20+ with npx (only for TypeScript-bearing chapters)
-#   - DuckDB CLI (only for chapter 18)
-#
+   - Python 3.11+ with venv module
+   - Node 20+ with npx (only for TypeScript-bearing chapters)
+   - DuckDB CLI (only for chapter 18)
+
 # Run `make help` for a list of available targets.
 
 SHELL := /bin/bash
@@ -170,7 +170,7 @@ $(foreach chapter,$(SH_CHAPTERS),$(eval $(call SH_CHAPTER_RULES,$(chapter))))
 # ----------------------------------------------------------------
 # Live-service tests, gated by environment variables
 # ----------------------------------------------------------------
-
+```
 .PHONY: test-live-cms
 test-live-cms:
 ifndef CMS_GRAPHQL_URL
@@ -196,11 +196,11 @@ else
 	  echo "/" | $(PYTHON) headless_seo_audit.py \
 	    --batch --base-url $$STAGING_BASE_URL
 endif
-
+```
 # ----------------------------------------------------------------
 # Lint and format
 # ----------------------------------------------------------------
-
+```
 .PHONY: lint
 lint: lint-python lint-typescript lint-markdown
 
@@ -230,7 +230,7 @@ lint-markdown:
 	@for f in README.md CHANGELOG.md CITATIONS.md $(VOL1)/README.md; do \
 	  [ -f "$$f" ] && echo "  ✓ $$f exists" || (echo "  ✗ $$f missing" && exit 1); \
 	done
-
+```
 # ----------------------------------------------------------------
 # Maintenance
 # ----------------------------------------------------------------
