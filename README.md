@@ -62,6 +62,7 @@ Every chapter directory follows the same shape:chapter-NN-topic/
 ├── requirements.txt      (or package.json for TypeScript/JavaScript)
 ├── <scripts>             (the chapter's runnable artifacts)
 └── <tests>               (smoke tests and unit tests where applicable)
+```
 
 The chapter README is the entry point. Read it before running anything.
 Every script has a `--help` flag.
