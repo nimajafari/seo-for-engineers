@@ -1,18 +1,18 @@
 # Makefile, top-level test orchestration for SEO for Engineers
 #
 # Conventions:
-   - Every chapter has a `test-NN` target that runs its smoke tests.
-   - `test-all` runs everything in chapter order.
-   - `test CHAPTER=chapter-NN-topic` runs a single chapter.
-   - `lint` runs format and lint checks across the repository.
-   - Targets that depend on live external services (Google IP ranges,
-     CMS APIs, Search Console) are gated by environment variables and
-     skipped gracefully when those are unset.
-
+#   - Every chapter has a `test-NN` target that runs its smoke tests.
+#   - `test-all` runs everything in chapter order.
+#   - `test CHAPTER=chapter-NN-topic` runs a single chapter.
+#   - `lint` runs format and lint checks across the repository.
+#   - Targets that depend on live external services (Google IP ranges,
+#     CMS APIs, Search Console) are gated by environment variables and
+#     skipped gracefully when those are unset.
+#
 # Requirements:
-   - Python 3.11+ with venv module
-   - Node 20+ with npx (only for TypeScript-bearing chapters)
-   - DuckDB CLI (only for chapter 18)
+#   - Python 3.11+ with venv module
+#   - Node 20+ with npx (only for TypeScript-bearing chapters)
+#   - DuckDB CLI (only for chapter 18)
 
 # Run `make help` for a list of available targets.
 
@@ -23,6 +23,7 @@ VOL1 := volume-1-code-and-craft
 
 # Chapters that have Python-based tests.
 PY_CHAPTERS := \
+  chapter-01-crawling \
   chapter-14-sitemaps \
   chapter-15-robots-txt \
   chapter-16-crawl-budget \
@@ -36,6 +37,7 @@ TS_CHAPTERS := \
 
 # Chapters with shell-script smoke tests.
 SH_CHAPTERS := \
+  chapter-01-crawling \
   chapter-15-robots-txt
 
 .DEFAULT_GOAL := help
@@ -112,9 +114,9 @@ test-$(1):
 	  else \
 	    echo "  (no pytest suite, running module imports as smoke test)"; \
 	    for f in *.py; do \
-	      $(PYTHON) -c "import ast; ast.parse(open('$$f').read())" \
-	        && echo "  ✓ $$f parses" \
-	        || (echo "  ✗ $$f failed to parse" && exit 1); \
+	      $(PYTHON) -c "import ast; ast.parse(open('$$$$f').read())" \
+	        && echo "  ✓ $$$$f parses" \
+	        || (echo "  ✗ $$$$f failed to parse" && exit 1); \
 	    done; \
 	  fi
 endef
@@ -135,9 +137,9 @@ test-ts-$(1):
 	@cd $(VOL1)/$(1) && \
 	  if command -v npx >/dev/null 2>&1; then \
 	    for f in *.test.ts *.test.tsx; do \
-	      [ -f "$$f" ] || continue; \
-	      echo "  running $$f"; \
-	      SITE_ORIGIN=https://example.com npx --yes tsx --test "$$f"; \
+	      [ -f "$$$$f" ] || continue; \
+	      echo "  running $$$$f"; \
+	      SITE_ORIGIN=https://example.com npx --yes tsx --test "$$$$f"; \
 	    done; \
 	  else \
 	    echo "  npx not installed; skipping TypeScript tests"; \
@@ -159,9 +161,9 @@ test-sh-$(1):
 	@echo "================================================================"
 	@cd $(VOL1)/$(1) && \
 	  for f in *.sh; do \
-	    [ -f "$$f" ] || continue; \
-	    bash -n "$$f" && echo "  ✓ $$f passes syntax check" \
-	      || (echo "  ✗ $$f failed syntax check" && exit 1); \
+	    [ -f "$$$$f" ] || continue; \
+	    bash -n "$$$$f" && echo "  ✓ $$$$f passes syntax check" \
+	      || (echo "  ✗ $$$$f failed syntax check" && exit 1); \
 	  done
 endef
 
@@ -170,7 +172,6 @@ $(foreach chapter,$(SH_CHAPTERS),$(eval $(call SH_CHAPTER_RULES,$(chapter))))
 # ----------------------------------------------------------------
 # Live-service tests, gated by environment variables
 # ----------------------------------------------------------------
-```
 .PHONY: test-live-cms
 test-live-cms:
 ifndef CMS_GRAPHQL_URL
@@ -196,11 +197,9 @@ else
 	  echo "/" | $(PYTHON) headless_seo_audit.py \
 	    --batch --base-url $$STAGING_BASE_URL
 endif
-```
 # ----------------------------------------------------------------
 # Lint and format
 # ----------------------------------------------------------------
-```
 .PHONY: lint
 lint: lint-python lint-typescript lint-markdown
 
@@ -230,7 +229,6 @@ lint-markdown:
 	@for f in README.md CHANGELOG.md CITATIONS.md $(VOL1)/README.md; do \
 	  [ -f "$$f" ] && echo "  ✓ $$f exists" || (echo "  ✗ $$f missing" && exit 1); \
 	done
-```
 # ----------------------------------------------------------------
 # Maintenance
 # ----------------------------------------------------------------

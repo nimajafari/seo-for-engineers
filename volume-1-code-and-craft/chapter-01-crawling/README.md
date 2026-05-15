@@ -56,8 +56,34 @@ will eventually be rate-limited.
 
 Usage:
 python verify-googlebot-ip.py 66.249.66.1
+python3 verify-googlebot-ip.py 66.249.66.1
 
-Requires Python 3.10 or later. Uses only the standard library.
+Requires Python 3.10 or later. Uses only the standard library, with an
+optional dependency on `certifi` to work around macOS Python.org builds
+that ship without a system trust store (install with `pip install certifi`
+or `pip3 install certifi`).
+
+## Tests
+
+Unit tests for `verify-googlebot-ip.py` and syntax checks for the shell
+scripts live in `tests/`. The Python tests mock all network calls, so the
+suite runs offline.
+
+Run them from this directory:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 -m pytest -q
+```
+
+Or from the repo root via the top-level Makefile:
+
+```bash
+make test-chapter-01-crawling      # pytest suite
+make test-sh-chapter-01-crawling   # bash -n syntax check
+```
 
 ## Primary sources
 

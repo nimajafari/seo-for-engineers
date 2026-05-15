@@ -69,9 +69,21 @@ Every script has a `--help` flag.
 
 ## Running the tests
 
-```bashTest everything across all chapters.
-make test-allTest a single chapter.
-make test CHAPTER=chapter-18-log-analysisLint and format checks.
+Test everything across all chapters:
+
+```bash
+make test-all
+```
+
+Test a single chapter:
+
+```bash
+make test CHAPTER=chapter-01-crawling
+```
+
+Lint and format checks:
+
+```bash
 make lint
 ```
 
