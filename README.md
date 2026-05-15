@@ -44,6 +44,7 @@ Each of these is a real artifact, tested, with a smoke test script in
 its chapter README. None is theoretical.
 
 ## Repository layout seo-for-engineers/
+```text
 ├── README.md             (this file)
 ├── CHANGELOG.md          (versioned release notes, one per chapter)
 ├── CITATIONS.md          (primary sources cited across all chapters)
