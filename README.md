@@ -135,10 +135,10 @@ of truth; if they disagree, that is a bug in one or both.
 
 ## Volume 2
 
-Volume 2, *Systems and Operations*, picks up where Volume 1 leaves
+Volume 2, *Infrastructure and Organization*, picks up where Volume 1 leaves
 off. Where Volume 1 covers the surfaces engineers build, Volume 2
 covers the systems that ship, operate, and monitor those surfaces, and
 the engineering culture that determines whether SEO is a shared
 discipline or a recurring source of incidents. Chapter directories for
-Volume 2 will appear under `volume-2-systems-and-operations/` as they
+Volume 2 will appear under `volume-2-infrastructure-and-organization/` as they
 are completed.
