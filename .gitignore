@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.Python
+*.egg-info/
+.pytest_cache/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Lighthouse CI
+.lighthouseci/
+
+# Crawl outputs and reports
+*.csv
+!**/example-*.csv
+*.tmp
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+*.swp
