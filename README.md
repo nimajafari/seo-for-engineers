@@ -73,6 +73,7 @@ Every script has a `--help` flag.
 make test-allTest a single chapter.
 make test CHAPTER=chapter-18-log-analysisLint and format checks.
 make lint
+```
 
 The Makefile is documented in detail at [`Makefile`](Makefile). All
 tests are designed to run in CI without external dependencies; tests
