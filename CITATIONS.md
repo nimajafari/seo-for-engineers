@@ -42,12 +42,12 @@ Crawl budget and crawl scheduling.
   https://developers.google.com/search/blog/2017/01/what-crawl-budget-means-for-googlebot
 
 - *Large site owner's guide to managing your crawl budget.*
-  https://developers.google.com/search/docs/crawling-indexing/large-site-managing-crawl-budget
+  https://developers.google.com/crawling/docs/crawl-budget
 
 robots.txt and crawl directives.
 
 - *How Google interprets the robots.txt specification.*
-  https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt
+  https://developers.google.com/crawling/docs/robots-txt/robots-txt-spec
 
 Rendering and evergreen Googlebot.
 
