@@ -19,13 +19,8 @@ whether Google has actually classified any specific URL as a soft 404.
 
 Usage:
     python soft-404-detector.py https://example.com/category/empty
-    python3 soft-404-detector.py https://example.com/category/empty
-
     python soft-404-detector.py --urls urls.txt --csv report.csv
-    python3 soft-404-detector.py --urls urls.txt --csv report.csv
-
     python soft-404-detector.py --urls urls.txt --csv report.csv --min-words 100
-    python3 soft-404-detector.py --urls urls.txt --csv report.csv --min-words 100
 
 Install:
     pip install -r requirements.txt

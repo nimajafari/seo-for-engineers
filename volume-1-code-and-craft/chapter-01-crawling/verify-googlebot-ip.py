@@ -12,7 +12,6 @@ on a schedule rather than calling the endpoints on every request.
 
 Usage:
     python verify-googlebot-ip.py <ip>
-    python3 verify-googlebot-ip.py <ip>
 
 Exits 0 if the IP is in a published range, 1 otherwise.
 

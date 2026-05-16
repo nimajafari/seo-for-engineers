@@ -14,10 +14,7 @@ are rendering-dependent.
 
 Usage:
     python rendering-debt-audit.py https://example.com/page
-    python3 rendering-debt-audit.py https://example.com/page
-
     python rendering-debt-audit.py --urls urls.txt --csv report.csv
-    python3 rendering-debt-audit.py --urls urls.txt --csv report.csv
 
 Install:
     pip install -r requirements.txt
