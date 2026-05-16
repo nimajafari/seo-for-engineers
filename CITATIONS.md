@@ -54,3 +54,14 @@ Google Search Essentials.
 - *Google Search Essentials.*
   https://developers.google.com/search/docs/essentials
 
+### Chapter 2, The Rendering Pipeline
+
+- *Understand the JavaScript SEO basics.*
+  https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics
+- *The new evergreen Googlebot.* (Also cited in Chapter 1.)
+- *URL Inspection tool.* Search Console Help.
+  https://support.google.com/webmasters/answer/9012289
+- *Bing announces evergreen Bingbot.* October 2019.
+  https://blogs.bing.com/webmaster/october-2019/The-new-evergreen-Bingbot-simplifying-SEO-by-leveraging-Microsoft-Edge
+- *About Applebot.* Apple Support.
+  https://support.apple.com/en-us/119829
