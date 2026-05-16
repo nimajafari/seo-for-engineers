@@ -26,6 +26,8 @@ PY_CHAPTERS := \
   chapter-01-crawling \
   chapter-02-rendering \
   chapter-03-indexing \
+  chapter-04-ranking \
+  chapter-05-javascript-rendering \
   chapter-14-sitemaps \
   chapter-15-robots-txt \
   chapter-16-crawl-budget \

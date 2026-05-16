@@ -1,0 +1,16 @@
+{
+  "name": "seo-for-engineers-chapter-05",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rendering strategy verification scripts for Chapter 5 of SEO for Engineers, Volume 1.",
+  "scripts": {
+    "test": "playwright test rendering-strategy.spec.ts",
+    "lhci": "lhci autorun"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

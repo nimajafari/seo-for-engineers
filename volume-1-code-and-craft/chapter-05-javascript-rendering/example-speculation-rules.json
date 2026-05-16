@@ -1,0 +1,25 @@
+{
+  "prerender": [
+    {
+      "where": {
+        "and": [
+          { "href_matches": "/product/*" },
+          { "not": { "href_matches": "/product/*/reviews" } }
+        ]
+      },
+      "eagerness": "moderate"
+    }
+  ],
+  "prefetch": [
+    {
+      "where": {
+        "selector_matches": ".nav-link"
+      },
+      "eagerness": "conservative"
+    },
+    {
+      "urls": ["/search"],
+      "expects-no-vary-search": "params=(\"utm_source\" \"utm_medium\")"
+    }
+  ]
+}

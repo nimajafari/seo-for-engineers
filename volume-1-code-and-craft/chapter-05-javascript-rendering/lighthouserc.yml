@@ -1,0 +1,32 @@
+# lighthouserc.yml
+#
+# Starter Lighthouse CI configuration for SEO for Engineers, Volume 1,
+# Chapter 5. The thresholds match the "good" buckets for the Core Web
+# Vitals discussed in Chapter 4.
+#
+# Usage:
+#   npm install -g @lhci/cli
+#   lhci autorun
+
+ci:
+  collect:
+    # Edit this list with the URLs you want to measure.
+    url:
+      - https://staging.example.com/
+      - https://staging.example.com/products/test-product
+    numberOfRuns: 3
+  assert:
+    assertions:
+      # Performance category is a warn so minor regressions do not
+      # block deployments. The individual metric thresholds below are
+      # hard errors.
+      categories:performance: ["warn", { "minScore": 0.8 }]
+      first-contentful-paint: ["error", { "maxNumericValue": 2000 }]
+      largest-contentful-paint: ["error", { "maxNumericValue": 2500 }]
+      cumulative-layout-shift: ["error", { "maxNumericValue": 0.1 }]
+      # Total blocking time is a lab proxy for INP. The chapter notes
+      # that field data is what Google uses for ranking, but TBT in
+      # the lab catches regressions before they reach users.
+      total-blocking-time: ["error", { "maxNumericValue": 200 }]
+  upload:
+    target: temporary-public-storage
