@@ -9,6 +9,11 @@ book's errata log.
 
 Nothing yet.
 
+## [1.2.0] - 2026
+
+Added repository materials for Chapter 3, Indexing, Canonicalization,
+and Duplicate Detection.
+
 ## [1.1.0] - 2026
 
 Added repository materials for Chapter 2, The Rendering Pipeline.

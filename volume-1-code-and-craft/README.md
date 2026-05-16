@@ -13,3 +13,4 @@ sitemaps, robots.txt, and crawl budget shape what can be indexed.
 
 - [Chapter 1, Crawling as a Distributed System](chapter-01-crawling/)
 - [Chapter 2, The Rendering Pipeline](chapter-02-rendering/)
+- [Chapter 3, Indexing, Canonicalization, and Duplicate Detection](chapter-03-indexing/)

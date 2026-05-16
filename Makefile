@@ -25,6 +25,7 @@ VOL1 := volume-1-code-and-craft
 PY_CHAPTERS := \
   chapter-01-crawling \
   chapter-02-rendering \
+  chapter-03-indexing \
   chapter-14-sitemaps \
   chapter-15-robots-txt \
   chapter-16-crawl-budget \
