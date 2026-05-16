@@ -9,6 +9,10 @@ book's errata log.
 
 Nothing yet.
 
+## [1.1.0] - 2026
+
+Added repository materials for Chapter 2, The Rendering Pipeline.
+
 ## [1.0.0] - 2026
 
 Initial release. Repository materials for Chapter 1, Crawling as a

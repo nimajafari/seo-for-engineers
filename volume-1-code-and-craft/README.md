@@ -12,3 +12,4 @@ sitemaps, robots.txt, and crawl budget shape what can be indexed.
 ### Part 1, How Search Engines Work
 
 - [Chapter 1, Crawling as a Distributed System](chapter-01-crawling/)
+- [Chapter 2, The Rendering Pipeline](chapter-02-rendering/)
