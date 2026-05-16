@@ -24,6 +24,7 @@ VOL1 := volume-1-code-and-craft
 # Chapters that have Python-based tests.
 PY_CHAPTERS := \
   chapter-01-crawling \
+  chapter-02-rendering \
   chapter-14-sitemaps \
   chapter-15-robots-txt \
   chapter-16-crawl-budget \
@@ -38,6 +39,7 @@ TS_CHAPTERS := \
 # Chapters with shell-script smoke tests.
 SH_CHAPTERS := \
   chapter-01-crawling \
+  chapter-02-rendering \
   chapter-15-robots-txt
 
 .DEFAULT_GOAL := help
