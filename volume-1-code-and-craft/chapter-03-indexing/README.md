@@ -66,9 +66,18 @@ python soft-404-detector.py --urls urls.txt --csv report.csv
 Custom word threshold
 python soft-404-detector.py --urls urls.txt --csv report.csv --min-words 100
 
+### `canonical-enforcement.nginx.conf`
+
+A reference nginx server configuration that enforces a single canonical
+URL shape across three dimensions: protocol (HTTP -> HTTPS), host
+(non-www -> www), and trailing-slash policy (strip non-root trailing
+slashes for non-directory URLs). Adapt the domain and certificate paths
+to your environment. URL casing is handled at the application layer,
+not here.
+
 ### Installing
 
-Both scripts require Python 3.10 or later. Install dependencies once.
+Both Python scripts require Python 3.10 or later. Install dependencies once.
 pip install -r requirements.txt
 
 ## Primary sources
