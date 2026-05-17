@@ -1,0 +1,16 @@
+{
+  "name": "seo-for-engineers-chapter-07",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Semantic HTML diagnostic scripts for Chapter 7 of SEO for Engineers, Volume 1.",
+  "scripts": {
+    "validate:headings": "node heading-hierarchy-validator.js"
+  },
+  "dependencies": {
+    "playwright": "^1.45.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
