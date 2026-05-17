@@ -60,6 +60,8 @@ its chapter README. None is theoretical.
 ├── chapter-06-core-web-vitals/
 ├── chapter-07-semantic-html/
 ├── chapter-08-head-management/
+├── chapter-09-structured-data/
+├── chapter-10-internal-linking/
 ├── ...
 └── chapter-19-headless/
 
