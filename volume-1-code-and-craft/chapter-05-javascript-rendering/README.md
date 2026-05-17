@@ -94,6 +94,16 @@ pip install -r requirements.txt
 A sample rules file that the validator can run against. Useful for
 exercising the validator before you point it at production rules.
 
+### `prerender-aware-analytics.example.js`
+
+A small browser-side ES module that wraps the `document.prerendering` /
+`prerenderingchange` pattern from the chapter. It exports a single
+`onPageActive(callback)` helper that invokes the callback exactly once
+per page load: immediately for a normal navigation, or after the
+prerendered page is activated by the user. Drop it into your client
+bundle and use it to gate analytics, conversion pixels, and A/B
+variant assignment so speculative loads do not inflate metrics.
+
 ## Primary sources
 
 The scripts and the chapter both reference the same primary sources.
