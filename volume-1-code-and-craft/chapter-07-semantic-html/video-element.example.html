@@ -1,0 +1,70 @@
+<!--
+  video-element.example.html
+
+  Reference HTML for a fully indexable <video> element as described
+  in Chapter 7 of SEO for Engineers, Volume 1. Composes:
+
+    - poster:       Thumbnail Google can use as the video's
+                    representative image in SERPs.
+    - <source>:     Multiple format fallbacks (MP4 + WebM) so the
+                    browser can pick a supported encoding.
+    - <track>:      WebVTT captions with kind="captions" (not
+                    "subtitles"), so the caption text is indexable
+                    as searchable text associated with the video.
+    - <p> fallback: Visible to user agents that do not implement
+                    the <video> element, including some crawlers.
+                    Contains meaningful text and a download link.
+    - preload="metadata": Loads only duration/dimensions, not the
+                    video body, so this markup does not regress
+                    LCP on the page that hosts it.
+
+  Pair this markup with VideoObject structured data (Chapter 9) for
+  rich-result eligibility.
+
+  Reference: SEO for Engineers, Volume 1, Chapter 7.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Cloud migration tutorial</title>
+</head>
+<body>
+  <main>
+    <article>
+      <h1>Cloud migration tutorial</h1>
+
+      <video
+        controls
+        width="1280"
+        height="720"
+        poster="/thumbnails/tutorial-cloud-migration.jpg"
+        preload="metadata">
+        <source src="/videos/cloud-migration-tutorial.mp4" type="video/mp4">
+        <source src="/videos/cloud-migration-tutorial.webm" type="video/webm">
+        <track
+          kind="captions"
+          src="/captions/cloud-migration-en.vtt"
+          srclang="en"
+          label="English"
+          default>
+        <p>
+          Your browser does not support the video element.
+          <a href="/videos/cloud-migration-tutorial.mp4">Download the video</a>.
+        </p>
+      </video>
+
+      <!--
+        A visible transcript below the video is the highest-value
+        placement for indexable video content. A <details> wrapper
+        keeps the transcript in the DOM (and crawlable) while
+        progressively disclosing it to readers.
+      -->
+      <details>
+        <summary>Transcript</summary>
+        <p>...</p>
+      </details>
+    </article>
+  </main>
+</body>
+</html>

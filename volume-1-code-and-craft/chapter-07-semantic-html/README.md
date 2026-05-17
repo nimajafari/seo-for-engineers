@@ -72,6 +72,39 @@ npm install
 npx playwright install chromium
 ```
 
+## Reference snippets
+
+### `generate-product-alt.example.js`
+
+A small ES module that builds natural-language alt text for product
+images from structured data. Exports `generateProductAlt(product)`.
+Handles partial data without producing double spaces or trailing
+punctuation. Use as a scaffold for CMS alt-text generation pipelines.
+
+### `sr-only.example.css`
+
+The "screen reader only" CSS class, modernized to include both `clip`
+(legacy) and `clip-path` (current) properties. Drop it into your
+stylesheet so icon-only links and buttons can carry visually hidden
+text that crawlers and screen readers still see.
+
+### `semantic-page-template.example.html`
+
+A complete document skeleton showing the full landmark composition
+from the chapter — page header, breadcrumb, main, article with nested
+sections, pagination, aside, and page footer. The aside uses
+`aria-labelledby` (not an `<h2>` heading) so the heading hierarchy
+remains uncontaminated by sidebar titles, matching the chapter's
+guidance and passing `heading-hierarchy-validator.js`.
+
+### `video-element.example.html`
+
+A minimal indexable `<video>` element with `poster`, multiple `<source>`
+formats, a WebVTT `<track kind="captions">`, a `<p>` fallback for user
+agents that don't implement `<video>`, and a `<details>`-wrapped
+transcript placement. Pair with VideoObject structured data (see
+Chapter 9) for rich-result eligibility.
+
 ## Primary sources
 
 The scripts and the chapter both reference the same primary sources.

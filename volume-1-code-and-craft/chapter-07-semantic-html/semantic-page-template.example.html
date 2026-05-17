@@ -1,0 +1,103 @@
+<!--
+  semantic-page-template.example.html
+
+  Reference document skeleton showing the landmark and sectioning
+  elements described in Chapter 7 of SEO for Engineers, Volume 1.
+  Composes <header>, <nav>, <main>, <article>, <section>, <aside>,
+  and <footer> so every structural decision is explicit and a
+  crawler does not need to guess where the main content begins
+  and ends.
+
+  Notes on choices made in this skeleton:
+    - The <aside> uses aria-labelledby pointing at a non-heading
+      element. The chapter warns against heading elements inside
+      <aside> because they pollute the document outline, and the
+      companion heading-hierarchy-validator.js flags them as
+      heading_inside_aside.
+    - <address> wraps the author byline, scoped to the <article>.
+    - The breadcrumb uses <ol> with aria-current="page" on the
+      final, non-link <span>.
+
+  Reference: SEO for Engineers, Volume 1, Chapter 7.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Optimizing LCP for Product Pages</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+  <header>
+    <a href="/" aria-label="Homepage"><img src="/logo.svg" alt="Company Name"></a>
+    <nav aria-label="Main navigation">
+      <ul>
+        <li><a href="/products">Products</a></li>
+        <li><a href="/pricing">Pricing</a></li>
+        <li><a href="/blog">Blog</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <nav aria-label="Breadcrumb">
+      <ol>
+        <li><a href="/">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/blog/performance">Performance</a></li>
+        <li><span aria-current="page">Optimizing LCP for Product Pages</span></li>
+      </ol>
+    </nav>
+
+    <article>
+      <header>
+        <h1>Optimizing LCP for Product Pages</h1>
+        <address>By <a href="/authors/jane-smith">Jane Smith</a></address>
+        <p>Published <time datetime="2026-03-15">March 15, 2026</time></p>
+      </header>
+
+      <section>
+        <h2>Understanding LCP Candidates</h2>
+        <p>...</p>
+
+        <section>
+          <h3>Images as LCP Elements</h3>
+          <p>...</p>
+        </section>
+      </section>
+
+      <section>
+        <h2>Measurement and Attribution</h2>
+        <p>...</p>
+      </section>
+
+      <footer>
+        <p>Tagged: <a href="/tags/performance">Performance</a></p>
+      </footer>
+    </article>
+
+    <nav aria-label="Pagination">
+      <a href="/blog/performance?page=3" rel="prev">Previous</a>
+      <a href="/blog/performance?page=5" rel="next">Next</a>
+    </nav>
+  </main>
+
+  <aside aria-labelledby="related-articles-title">
+    <p id="related-articles-title"><strong>Related Articles</strong></p>
+    <ul>
+      <li><a href="/blog/inp-optimization">Reducing INP on Interactive Pages</a></li>
+      <li><a href="/blog/cls-prevention">Preventing Layout Shift at Scale</a></li>
+    </ul>
+  </aside>
+
+  <footer>
+    <nav aria-label="Footer navigation">
+      <ul>
+        <li><a href="/about">About</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </nav>
+    <p>&copy; 2026 Company Name</p>
+  </footer>
+</body>
+</html>
