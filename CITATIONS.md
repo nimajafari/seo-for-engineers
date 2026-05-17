@@ -505,3 +505,37 @@ CDN edge routing platforms referenced in the chapter.
   
 - *Fastly Compute.* https://docs.fastly.com/products/compute
 
+
+### Chapter 12, URL Design as an Engineering Discipline
+
+Google guidance on URL structure and site moves.
+
+- *Keep a simple URL structure.*
+  https://developers.google.com/search/docs/crawling-indexing/url-structure
+
+- *Move a site with URL changes.*
+  https://developers.google.com/search/docs/crawling-indexing/site-move-with-url-changes
+
+- *Move a site without URL changes (changing hosting).*
+  https://developers.google.com/search/docs/crawling-indexing/site-move-no-url-changes
+
+- *Change of Address tool.* Search Console Help.
+  https://support.google.com/webmasters/answer/9370220
+
+- *Spring cleaning, the URL Parameters tool.* Google Search Central Blog, March 28, 2022.
+  https://developers.google.com/search/blog/2022/03/url-parameters-tool-deprecated
+
+RFC and Unicode references.
+
+- *RFC 3986, Uniform Resource Identifier (URI), Generic Syntax.* IETF.
+  https://datatracker.ietf.org/doc/html/rfc3986
+
+- *Unicode Normalization Forms.* Unicode Standard Annex #15.
+  https://unicode.org/reports/tr15/
+
+Slug pattern examples referenced in the chapter.
+
+- *Stack Overflow URL pattern.*
+
+- *unidecode, ASCII transliteration of Unicode text.* PyPI.
+  https://pypi.org/project/Unidecode/
