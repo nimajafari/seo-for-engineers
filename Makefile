@@ -31,6 +31,7 @@ PY_CHAPTERS := \
   chapter-07-semantic-html \
   chapter-08-head-management \
   chapter-09-structured-data \
+  chapter-10-internal-linking \
   chapter-14-sitemaps \
   chapter-15-robots-txt \
   chapter-16-crawl-budget \

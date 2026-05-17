@@ -1,0 +1,16 @@
+{
+  "name": "seo-for-engineers-chapter-10",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Internal linking diagnostic scripts for Chapter 10 of SEO for Engineers, Volume 1.",
+  "scripts": {
+    "check:pagination": "node pagination-crawlability-checker.js"
+  },
+  "dependencies": {
+    "playwright": "^1.45.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
