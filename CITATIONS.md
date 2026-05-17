@@ -314,3 +314,145 @@ Open Graph image generation.
 
 - *@vercel/og.* Vercel documentation.
   https://vercel.com/docs/functions/og-image-generation
+
+
+### Chapter 9, Structured Data at Scale
+
+Schema.org vocabulary.
+
+- *Schema.org.*
+  https://schema.org/
+
+Google general structured data guidance.
+
+- *Introduction to structured data markup in Google Search.* (Also cited in Chapter 3.)
+
+- *General structured data guidelines and policies.*
+  https://developers.google.com/search/docs/appearance/structured-data/sd-policies
+
+- *Search Gallery (current supported rich result types).*
+  https://developers.google.com/search/docs/appearance/structured-data/search-gallery
+
+- *Latest Google Search documentation updates.*
+  https://developers.google.com/search/updates
+
+Per-type Google documentation referenced in the chapter.
+
+- *Product structured data.*
+  https://developers.google.com/search/docs/appearance/structured-data/product
+
+- *Article structured data.*
+  https://developers.google.com/search/docs/appearance/structured-data/article
+
+- *BreadcrumbList structured data.*
+  https://developers.google.com/search/docs/appearance/structured-data/breadcrumb
+
+- *LocalBusiness structured data.*
+  https://developers.google.com/search/docs/appearance/structured-data/local-business
+
+- *Organization structured data.*
+  https://developers.google.com/search/docs/appearance/structured-data/organization
+
+- *VideoObject structured data.*
+  https://developers.google.com/search/docs/appearance/structured-data/video
+- *Recipe structured data.*
+- 
+  https://developers.google.com/search/docs/appearance/structured-data/recipe
+
+- *Event structured data.*
+  https://developers.google.com/search/docs/appearance/structured-data/event
+
+Discussion forums and Q&A structured data update.
+
+- *Discussion forum structured data.*
+  https://developers.google.com/search/docs/appearance/structured-data/discussion-forum
+
+- *Q&A page structured data.*
+  https://developers.google.com/search/docs/appearance/structured-data/qapage
+
+- *Google Adds AI & Bot Labels To Forum, Q&A Structured Data.*
+  Search Engine Journal, March 24, 2026.
+  https://www.searchenginejournal.com/google-adds-ai-bot-labels-to-forum-qa-structured-data/570425/
+
+Deprecation announcements.
+
+- *Simplifying the search results page.* Google Search Central Blog,
+  June 12, 2025.
+  https://developers.google.com/search/blog/2025/06/simplifying-search-results
+
+- *Practice Problems deprecation.* Google Search Central documentation
+  changelog, November 2025.
+  https://developers.google.com/search/docs/appearance/structured-data/practice-problems
+
+- *FAQ structured data deprecation notice.*
+  https://developers.google.com/search/docs/appearance/structured-data/faqpage
+
+Validation and tooling.
+
+- *Rich Results Test.* (Also cited in Chapter 4.)
+
+- *Schema.org Validator.* (Also cited in Chapter 3.)
+
+- *schema-dts TypeScript types.* Google, GitHub.
+  https://github.com/google/schema-dts
+
+Framework documentation.
+
+- *Next.js JSON-LD guide.*
+  https://nextjs.org/docs/app/guides/json-ld
+
+- *Nuxt SEO and meta tags.* (Also cited in Chapter 8.)
+
+- *Angular Meta and Title services.* (Also cited in Chapter 8.)
+
+- *SvelteKit svelte:head.* (Also cited in Chapter 8.)
+
+### Chapter 10, Internal Linking as a Graph Problem
+
+Foundational paper and Google guidance on link architecture.
+
+- Brin and Page (1998). (Also cited in Chapters 1 and 4.)
+
+- *Importance of link architecture.* Google Search Central Blog, October 2008.
+  https://developers.google.com/search/blog/2008/10/importance-of-link-architecture
+
+- *Make your links crawlable.*
+  https://developers.google.com/search/docs/crawling-indexing/links-crawlable
+
+- *Sitelinks.*
+  https://developers.google.com/search/docs/appearance/sitelinks
+
+Pagination guidance.
+
+- *Pagination best practices for Google.*
+  https://developers.google.com/search/docs/specialty/ecommerce/pagination-and-incremental-page-loading
+
+- *Pagination with rel="next" and rel="prev".* Google Search Central Blog, September 2011.
+  https://developers.google.com/search/blog/2011/09/pagination-with-relnext-and-relprev
+
+- *A note on unsupported rel-attributes in Google Search.* (Also cited in Chapter 7.)
+
+Independent research and industry data referenced in the chapter.
+
+- *2.5 Million Internal Links Study, How Websites Link Their Content.* LinkStorm.
+  https://linkstorm.io/studies/internal-links-study
+
+- *The State of Pagination and Infinite Scroll.* Adam Gent, BrightonSEO April 2019. DeepCrawl.
+  https://www.slideshare.net/DeepCrawl/the-state-of-pagination-infinite-scroll-brightonseo-april-2019-adam-gent
+
+- *State of Pagination in eCommerce, the SilkFred case study.* Orit Mutznik, BrightonSEO 2020.
+  https://www.lumar.io/blog/best-practice/state-of-pagination-in-ecommerce/
+  
+- *How does Google pagination crawling work in 2025?* Journey Further, 2025.
+  https://www.journeyfurther.com/articles/how-does-google-handle-pagination-links-in-2025
+
+2024 Google API leak.
+
+- Fishkin, R. (2024). *An anonymous source shared thousands of leaked
+  Google Search API documents with me.* SparkToro.
+  https://sparktoro.com/blog/an-anonymous-source-shared-thousands-of-leaked-google-search-api-documents-with-me-everyone-in-seo-should-see-them
+
+Graph analysis tooling.
+
+- *NetworkX, network analysis in Python.*
+  https://networkx.org/
