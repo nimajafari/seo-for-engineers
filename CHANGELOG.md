@@ -9,6 +9,15 @@ book's errata log.
 
 Nothing yet.
 
+## [1.9.0] - 2026
+
+Added repository materials for Chapter 10, Internal Linking as a
+Graph Problem.
+
+## [1.8.0] - 2026
+
+Added repository materials for Chapter 9, Structured Data at Scale.
+
 ## [1.7.0] - 2026
 
 Added repository materials for Chapter 8, Meta Tags, Canonical Tags,
