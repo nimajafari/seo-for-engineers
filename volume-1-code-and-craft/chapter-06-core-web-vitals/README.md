@@ -77,6 +77,25 @@ node bfcache-eligibility-check.js --urls https://example.com/ https://example.co
 Output identifies whether bfcache restored the page, and if not, which
 of Chrome's `notRestoredReasons` were responsible.
 
+### `delayed-third-party-loader.example.js`
+
+A small browser-side ES module for the "delay non-critical third-party
+scripts" pattern from the chapter. Exports
+`loadAfterInteractionOrTimeout({ src, timeoutMs, events, async })`,
+which loads a script tag exactly once after the user's first
+interaction or after a fallback timeout, whichever fires first. The
+load-once guarantee prevents the multi-load bug that happens when a
+naive `{ once: true }`-only implementation receives two different
+events (e.g. click then scroll).
+
+### `lighthouse-ci.github-actions.yml`
+
+A sample GitHub Actions workflow that deploys to staging on every PR
+to `main` and runs Lighthouse CI against the deployed URLs. Pairs
+with a project-level `.lighthouserc.yml`. Copy to
+`.github/workflows/lighthouse.yml` in your repo and adapt the deploy
+step, URL list, and config path to your environment.
+
 ## Installing
 
 ```bash

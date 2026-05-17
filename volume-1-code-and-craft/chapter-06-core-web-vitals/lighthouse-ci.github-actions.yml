@@ -1,0 +1,45 @@
+# lighthouse-ci.github-actions.yml
+#
+# Sample GitHub Actions workflow that runs Lighthouse CI against a
+# staging deployment on every pull request to main. Pairs with a
+# project-level .lighthouserc.yml that defines the assertions to
+# enforce (the chapter 5 directory includes a starter version).
+#
+# To use, copy this file to .github/workflows/lighthouse.yml in your
+# repository and edit:
+#   - The trigger branch under `on: pull_request: branches`.
+#   - The deploy-staging step. Replace `./deploy-staging.sh` with your
+#     real staging-deployment command. It must print the deployed
+#     base URL on stdout so the next step can pick it up.
+#   - The URL list under the lighthouse-ci-action's `urls:` input.
+#   - The `configPath` if your lighthouserc lives somewhere other than
+#     the repo root.
+#
+# Reference: SEO for Engineers, Volume 1, Chapter 6.
+
+name: Lighthouse CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        id: deploy
+        run: |
+          echo "STAGING_URL=$(./deploy-staging.sh)" >> $GITHUB_OUTPUT
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: |
+            ${{ steps.deploy.outputs.STAGING_URL }}/
+            ${{ steps.deploy.outputs.STAGING_URL }}/products/test-product
+          configPath: '.lighthouserc.yml'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
