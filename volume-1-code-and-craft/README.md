@@ -24,3 +24,4 @@ sitemaps, robots.txt, and crawl budget shape what can be indexed.
 - [Chapter 8, Meta Tags, Canonical Tags, and Head Management](chapter-08-head-management/)
 - [Chapter 9, Structured Data at Scale](chapter-09-structured-data/)
 - [Chapter 10, Internal Linking as a Graph Problem](chapter-10-internal-linking/)
+- [Chapter 11, Internationalization and Multilingual SEO Engineering](chapter-11-internationalization/)

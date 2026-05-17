@@ -1,0 +1,16 @@
+{
+  "name": "seo-for-engineers-chapter-11",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Internationalization diagnostic scripts for Chapter 11 of SEO for Engineers, Volume 1.",
+  "scripts": {
+    "check:routing": "node locale-routing-checker.js"
+  },
+  "dependencies": {
+    "playwright": "^1.45.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

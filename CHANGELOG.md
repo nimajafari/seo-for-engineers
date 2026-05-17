@@ -9,6 +9,11 @@ book's errata log.
 
 Nothing yet.
 
+## [1.10.0] - 2026
+
+Added repository materials for Chapter 11, Internationalization and
+Multilingual SEO Engineering.
+
 ## [1.9.0] - 2026
 
 Added repository materials for Chapter 10, Internal Linking as a

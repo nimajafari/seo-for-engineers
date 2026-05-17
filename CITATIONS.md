@@ -456,3 +456,52 @@ Graph analysis tooling.
 
 - *NetworkX, network analysis in Python.*
   https://networkx.org/
+
+
+### Chapter 11, Internationalization and Multilingual SEO Engineering
+
+Google guidance on international and multilingual sites.
+
+- *Managing multi-regional and multilingual sites.*
+  https://developers.google.com/search/docs/specialty/international/managing-multi-regional-sites
+
+- *Tell Google about localized versions of your page.*
+  https://developers.google.com/search/docs/specialty/international/localized-versions
+
+- *The International Targeting report is deprecated.* Search Console Help.
+  https://support.google.com/webmasters/answer/12474899
+
+ISO standards referenced in the chapter.
+
+- *ISO 639-1, codes for the representation of names of languages.*
+  https://www.iso.org/iso-639-language-code
+
+- *ISO 3166-1 Alpha-2, codes for the representation of names of
+  countries and their subdivisions.*
+  https://www.iso.org/iso-3166-country-codes.html
+
+Independent research and industry data.
+
+- Stox, P. (2023). *Over 67% of Domains Using Hreflang Have Issues,
+  Study of 374,756 Domains.* Ahrefs. BrightonSEO September 15, 2023.
+  https://ahrefs.com/blog/hreflang-study/
+
+Frontend i18n libraries referenced in the chapter.
+
+- *next-intl, internationalization for Next.js.* https://next-intl.dev/
+
+- *react-i18next.* https://react.i18next.com/
+
+- *vue-i18n.* https://vue-i18n.intlify.dev/
+
+- *Angular localize.* https://angular.dev/guide/i18n
+
+CDN edge routing platforms referenced in the chapter.
+
+- *Cloudflare Workers.* https://developers.cloudflare.com/workers/
+
+- *AWS CloudFront Functions.*
+  https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html
+  
+- *Fastly Compute.* https://docs.fastly.com/products/compute
+
