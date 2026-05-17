@@ -33,6 +33,7 @@ PY_CHAPTERS := \
   chapter-09-structured-data \
   chapter-10-internal-linking \
   chapter-11-internationalization \
+  chapter-12-url-design \
   chapter-14-sitemaps \
   chapter-15-robots-txt \
   chapter-16-crawl-budget \

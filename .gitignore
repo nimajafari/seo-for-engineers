@@ -31,3 +31,6 @@ playwright/.cache/
 .idea/
 .DS_Store
 *.swp
+
+# Book Chapters
+book-chapters/
