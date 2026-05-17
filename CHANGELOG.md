@@ -9,6 +9,31 @@ book's errata log.
 
 Nothing yet.
 
+## [1.7.0] - 2026
+
+Added repository materials for Chapter 8, Meta Tags, Canonical Tags,
+and Head Management.
+
+## [1.6.0] - 2026
+
+Added repository materials for Chapter 7, Semantic HTML and
+Information Architecture for Machines.
+
+## [1.5.0] - 2026
+
+Added repository materials for Chapter 6, Core Web Vitals as an
+Engineering Discipline.
+
+## [1.4.0] - 2026
+
+Added repository materials for Chapter 5, JavaScript Rendering and
+the Crawlability Challenge.
+
+## [1.3.0] - 2026
+
+Added repository materials for Chapter 4, Ranking Signals That
+Engineering Controls.
+
 ## [1.2.0] - 2026
 
 Added repository materials for Chapter 3, Indexing, Canonicalization,

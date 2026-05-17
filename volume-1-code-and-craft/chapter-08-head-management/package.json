@@ -1,0 +1,16 @@
+{
+  "name": "seo-for-engineers-chapter-08",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Head management diagnostic scripts for Chapter 8 of SEO for Engineers, Volume 1.",
+  "scripts": {
+    "gate:noindex": "node noindex-deployment-gate.js"
+  },
+  "dependencies": {
+    "playwright": "^1.45.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

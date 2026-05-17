@@ -14,3 +14,11 @@ sitemaps, robots.txt, and crawl budget shape what can be indexed.
 - [Chapter 1, Crawling as a Distributed System](chapter-01-crawling/)
 - [Chapter 2, The Rendering Pipeline](chapter-02-rendering/)
 - [Chapter 3, Indexing, Canonicalization, and Duplicate Detection](chapter-03-indexing/)
+- [Chapter 4, Ranking Signals That Engineering Controls](chapter-04-ranking/)
+
+### Part 2, Frontend SEO Engineering
+
+- [Chapter 5, JavaScript Rendering and the Crawlability Challenge](chapter-05-javascript-rendering/)
+- [Chapter 6, Core Web Vitals as an Engineering Discipline](chapter-06-core-web-vitals/)
+- [Chapter 7, Semantic HTML and Information Architecture for Machines](chapter-07-semantic-html/)
+- [Chapter 8, Meta Tags, Canonical Tags, and Head Management](chapter-08-head-management/)
