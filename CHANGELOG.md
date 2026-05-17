@@ -9,6 +9,11 @@ book's errata log.
 
 Nothing yet.
 
+## [1.11.0] - 2026
+
+Added repository materials for Chapter 12, URL Design as an
+Engineering Discipline.
+
 ## [1.10.0] - 2026
 
 Added repository materials for Chapter 11, Internationalization and
