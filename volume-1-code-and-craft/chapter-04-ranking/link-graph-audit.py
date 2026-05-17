@@ -41,14 +41,29 @@ PAGERANK_TOLERANCE = 1e-6
 
 
 def load_crawl(path: Path) -> pd.DataFrame:
-    """Load a crawl-export CSV and validate the columns."""
+    """Load a crawl-export CSV and validate the columns.
+
+    Accepts ``target_status_code`` (the canonical form used in this
+    script) or ``status_code`` as an alias for the response-code
+    column. The latter matches the column name used in the Chapter 4
+    inline snippet. Both are normalized to ``target_status_code``
+    so the rest of the pipeline can assume the canonical name.
+    """
     df = pd.read_csv(path)
-    required = {"source_url", "target_url", "target_status_code"}
-    missing = required - set(df.columns)
-    if missing:
+    required_urls = {"source_url", "target_url"}
+    missing_urls = required_urls - set(df.columns)
+    if missing_urls:
         raise ValueError(
-            f"crawl CSV is missing required columns: {sorted(missing)}"
+            f"crawl CSV is missing required columns: {sorted(missing_urls)}"
         )
+    if "target_status_code" not in df.columns:
+        if "status_code" in df.columns:
+            df = df.rename(columns={"status_code": "target_status_code"})
+        else:
+            raise ValueError(
+                "crawl CSV must have a 'target_status_code' or "
+                "'status_code' column"
+            )
     # Coerce status code to integer, dropping rows with non-numeric values.
     df["target_status_code"] = pd.to_numeric(
         df["target_status_code"], errors="coerce"

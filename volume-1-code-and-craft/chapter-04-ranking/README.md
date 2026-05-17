@@ -22,7 +22,9 @@ through editorial cross-links, which broken links to repair).
 Input format is a CSV with three columns. `source_url`, `target_url`,
 and `target_status_code`. One row per internal link found during the
 crawl. Most commercial crawlers (Screaming Frog, Sitebulb) can export
-this shape directly, or close to it.
+this shape directly, or close to it. The bare name `status_code` is
+also accepted as an alias for `target_status_code`, matching the
+inline snippet in Chapter 4.
 
 ```csv
 source_url,target_url,target_status_code
