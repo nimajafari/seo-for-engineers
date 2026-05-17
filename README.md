@@ -54,6 +54,12 @@ its chapter README. None is theoretical.
 ├── README.md         (Volume 1 chapter index)
 ├── chapter-01-crawling/
 ├── chapter-02-rendering/
+├── chapter-03-indexing/
+├── chapter-04-ranking/
+├── chapter-05-javascript-rendering/
+├── chapter-06-core-web-vitals/
+├── chapter-07-semantic-html/
+├── chapter-08-head-management/
 ├── ...
 └── chapter-19-headless/
 
