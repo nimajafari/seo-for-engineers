@@ -134,15 +134,18 @@ onINP(({ value, rating, attribution }) => {
 onCLS(({ value, rating, attribution }) => {
   send({
     ...commonFields(),
+    // CLS is sent as an integer scaled by 1000 (e.g. 0.123 -> 123) so it
+    // can be stored alongside other metric values without floating-point
+    // precision loss in the analytics backend. Matches the convention used
+    // in Chapter 6 of the book.
     metric: 'CLS',
-    // Round to three decimal places, the CLS scale.
-    value: Math.round(value * 1000) / 1000,
+    value: Math.round(value * 1000),
     rating,
     largestShiftTarget:
       elementSelector(attribution.largestShiftTarget) ||
       attribution.largestShiftTarget || null,
     largestShiftValue: attribution.largestShiftValue
-      ? Math.round(attribution.largestShiftValue * 1000) / 1000
+      ? Math.round(attribution.largestShiftValue * 1000)
       : 0,
   });
 });
