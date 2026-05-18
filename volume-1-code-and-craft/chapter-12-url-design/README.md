@@ -119,6 +119,72 @@ The script exits non-zero if any test case fails.
 Install:
 pip install -r requirements.txt
 
+## Reference snippets
+
+Five lift-and-paste files that pair with the slug generator and
+URL design linter:
+
+### `generate-slug.example.ts`
+
+TypeScript port of `example_slug_implementation.py` for Node.js
+backends. Matches the Python API function-for-function:
+NFKD + diacritic stripping, lowercase, hyphen-collapse, trim,
+word-boundary truncation, `FALLBACK_SLUG` for empty input,
+reserved-word protection, and async `existsFn`-based collision
+resolution. Reserved-word and collision steps share a counter so
+a slug that hits both keeps incrementing rather than restarting.
+
+### `canonical-url-generator.example.py`
+
+The `CanonicalConfig` dataclass and `generate_canonical` function
+from chapter 12. Each parameter is classified against two lists:
+`non_indexable_params` (explicit drop), `indexable_params`
+(explicit include, sorted), and parameters in neither list are
+logged and dropped — so unknown tracking parameters surface in
+monitoring rather than leaking into canonical URLs.
+
+Run directly to see a smoke test:
+
+```bash
+python canonical-url-generator.example.py
+```
+
+### `url-normalization.example.py`
+
+Two independent utilities. `normalize_url(url)` lowercases scheme
+and host, sorts query parameters alphabetically (including
+multi-values), strips trailing slashes from non-root paths, and
+strips the fragment. `strip_insignificant_params(url)` removes
+tracking, session, and analytics parameters via the
+`INSIGNIFICANT_PARAMS` frozenset. Use these when generating
+canonical URLs, sitemap entries, or internal links.
+
+Run directly for a smoke test:
+
+```bash
+python url-normalization.example.py
+```
+
+### `article-router.example.py`
+
+Flask route handler for the `/articles/{id}/{slug}` pattern. The
+numeric ID is the true routing key; the slug is cosmetic. A
+request with the wrong slug 301-redirects to the canonical slug,
+so the system tolerates slug changes without breaking external
+links. Includes the optional handler for the slug-less form
+(`/articles/12345`) that canonicalizes to the full URL.
+
+The `Article` class is stubbed in-memory so the file runs without
+a database — replace it with your ORM.
+
+### `trailing-slash-middleware.example.js`
+
+Express middleware that 301-redirects any non-root path ending in
+`/` to the same URL without the trailing slash, preserving query
+strings. Apply early in the pipeline, before routing. Single layer
+of enforcement (Express app OR CDN, never both — chapter 12's
+failure mode 3).
+
 ## Primary sources
 
 The scripts and the chapter both reference the same primary sources.
