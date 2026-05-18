@@ -91,6 +91,30 @@ npm install
 npx playwright install chromium
 ```
 
+### `canonical-status-check.sh`
+
+A small Bash script that reads a list of URLs and verifies each
+URL's `<link rel="canonical">` tag points at a URL returning HTTP
+200. Catches canonical drift, where a canonical continues pointing
+at a URL that has since been redirected, removed, or otherwise
+stopped returning 200. Designed to run in CI as a regression gate.
+
+Usage:
+
+```bash
+./canonical-status-check.sh urls.txt
+```
+
+`urls.txt` should contain one URL per line; blank lines and lines
+starting with `#` are skipped. Exits 1 if any canonical issue is
+found, 0 otherwise.
+
+Portability. The script detects whether the local `grep` supports
+PCRE (`-P`) and falls back to a Perl one-liner when it does not.
+This means the same file runs on Linux CI runners (GNU grep
+available) and on macOS developer machines (BSD grep, no `-P`)
+without changes.
+
 ## Wiring into CI
 
 A typical pre-deployment workflow runs both scripts.
