@@ -96,6 +96,70 @@ npm install
 npx playwright install chromium
 ```
 
+## Reference snippets
+
+### `schema-builder.example.ts`
+
+A TypeScript builder module exporting `ProductSchemaBuilder` and
+`BreadcrumbSchemaBuilder` plus the `SchemaBuilder<T>` interface.
+Each builder owns its required-field validation, enumeration mapping,
+and sanitization (full three-character escape: `<`, `>`, `&`), so the
+rest of the application never assembles raw JSON-LD by hand. Builders
+return `null` when required fields are missing, on the principle that
+emitting no structured data is always better than emitting invalid
+structured data.
+
+Improvements over the chapter version:
+- `description` is sanitized only when present, so the builder does
+  not crash on undefined input.
+- `mapAvailability` includes `discontinued -> Discontinued`, matching
+  the chapter's Django helper and `structured-data-extractor.py`.
+
+### `ci-validate-structured-data.example.js`
+
+A CI gate script that fetches a list of URLs, extracts every
+`<script type="application/ld+json">` block, validates each one
+against per-type Ajv schemas, and applies a regression baseline that
+asserts which `@type` values each URL template is expected to emit.
+Designed to run as a blocking step in CI/CD; exits non-zero on JSON
+syntax errors, schema-validation failures, or regressions.
+
+Improvement over the chapter version: the `Offer.availability`
+regex includes all ten Google-supported enum values (`InStock`,
+`OutOfStock`, `OnlineOnly`, `InStoreOnly`, `PreOrder`, `PreSale`,
+`BackOrder`, `SoldOut`, `Discontinued`, `LimitedAvailability`),
+matching `structured-data-extractor.py`'s `VALID_AVAILABILITY`.
+
+Install:
+
+```bash
+npm install jsdom ajv ajv-formats
+```
+
+Usage:
+
+```bash
+node ci-validate-structured-data.example.js \
+  --base-url http://localhost:3000 \
+  --url /products/sample-product \
+  --url /blog/sample-article \
+  --url /
+```
+
+### `examples/`
+
+Four reference JSON-LD documents — complete, copy-pasteable markup
+that satisfies Google's required-field requirements for each type.
+Useful as starting points for new pages and as fixtures for test
+suites that ingest known-good schema documents.
+
+| File | Type | Notes |
+| --- | --- | --- |
+| `product.example.json` | `Product` | Includes nested `Offer`, `shippingDetails`, `hasMerchantReturnPolicy`, `aggregateRating`, and a `Review` array. Covers the full feature surface of Google's Merchant Listings rich-results requirements. |
+| `article.example.json` | `Article` | Includes typed `author` with `sameAs` Knowledge-Graph anchors, `publisher` with logo, `datePublished` / `dateModified`, and `mainEntityOfPage`. |
+| `local-business.example.json` | `Restaurant` (`LocalBusiness` subtype) | Includes `PostalAddress`, `GeoCoordinates`, weekday + weekend `openingHoursSpecification`, `servesCuisine`, `priceRange`. |
+| `breadcrumb-list.example.json` | `BreadcrumbList` | Three-level navigation hierarchy with `ListItem` entries. |
+
 ## Primary sources
 
 The scripts and the chapter both reference the same primary sources.

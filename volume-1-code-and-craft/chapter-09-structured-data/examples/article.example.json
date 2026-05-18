@@ -1,0 +1,31 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Understanding Database Sharding Strategies",
+  "image": "https://example.com/images/sharding-hero.jpg",
+  "datePublished": "2026-03-15T08:00:00+00:00",
+  "dateModified": "2026-03-20T14:30:00+00:00",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Sarah Johnson",
+      "url": "https://example.com/authors/sarah-johnson",
+      "sameAs": [
+        "https://www.linkedin.com/in/sarahjohnsondev",
+        "https://github.com/sarahjohnson"
+      ]
+    }
+  ],
+  "publisher": {
+    "@type": "Organization",
+    "name": "Example Engineering Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://example.com/logo.png"
+    }
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://example.com/blog/database-sharding"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Restaurant",
+  "name": "The Garden Kitchen",
+  "image": "https://example.com/photos/restaurant-exterior.jpg",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "123 Main Street",
+    "addressLocality": "Portland",
+    "addressRegion": "OR",
+    "postalCode": "97201",
+    "addressCountry": "US"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": 45.5155,
+    "longitude": -122.6789
+  },
+  "url": "https://example.com",
+  "telephone": "+1-503-555-0100",
+  "openingHoursSpecification": [
+    {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "opens": "11:00",
+      "closes": "22:00"
+    },
+    {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Saturday", "Sunday"],
+      "opens": "10:00",
+      "closes": "23:00"
+    }
+  ],
+  "servesCuisine": "Farm-to-table American",
+  "priceRange": "$$",
+  "acceptsReservations": true
+}

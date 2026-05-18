@@ -1,0 +1,86 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "Mechanical Keyboard Pro",
+  "image": [
+    "https://example.com/photos/keyboard-1x1.jpg",
+    "https://example.com/photos/keyboard-4x3.jpg",
+    "https://example.com/photos/keyboard-16x9.jpg"
+  ],
+  "description": "Full-size mechanical keyboard with Cherry MX Blue switches, RGB backlighting, and USB-C connectivity.",
+  "sku": "KB-PRO-2025",
+  "gtin13": "0012345678905",
+  "brand": {
+    "@type": "Brand",
+    "name": "KeyTech"
+  },
+  "offers": {
+    "@type": "Offer",
+    "url": "https://example.com/keyboards/mechanical-pro",
+    "priceCurrency": "USD",
+    "price": 149.99,
+    "priceValidUntil": "2026-12-31",
+    "availability": "https://schema.org/InStock",
+    "itemCondition": "https://schema.org/NewCondition",
+    "seller": {
+      "@type": "Organization",
+      "name": "Example Store"
+    },
+    "shippingDetails": {
+      "@type": "OfferShippingDetails",
+      "shippingRate": {
+        "@type": "MonetaryAmount",
+        "value": 0,
+        "currency": "USD"
+      },
+      "deliveryTime": {
+        "@type": "ShippingDeliveryTime",
+        "handlingTime": {
+          "@type": "QuantitativeValue",
+          "minValue": 0,
+          "maxValue": 1,
+          "unitCode": "DAY"
+        },
+        "transitTime": {
+          "@type": "QuantitativeValue",
+          "minValue": 3,
+          "maxValue": 5,
+          "unitCode": "DAY"
+        }
+      },
+      "shippingDestination": {
+        "@type": "DefinedRegion",
+        "addressCountry": "US"
+      }
+    },
+    "hasMerchantReturnPolicy": {
+      "@type": "MerchantReturnPolicy",
+      "applicableCountry": "US",
+      "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+      "merchantReturnDays": 30,
+      "returnMethod": "https://schema.org/ReturnByMail",
+      "returnFees": "https://schema.org/FreeReturn"
+    }
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": 4.6,
+    "reviewCount": 238
+  },
+  "review": [
+    {
+      "@type": "Review",
+      "reviewRating": {
+        "@type": "Rating",
+        "ratingValue": 5,
+        "bestRating": 5
+      },
+      "author": {
+        "@type": "Person",
+        "name": "Alex Chen"
+      },
+      "datePublished": "2025-11-15",
+      "reviewBody": "Excellent key feel and build quality. The switches are perfectly weighted."
+    }
+  ]
+}
