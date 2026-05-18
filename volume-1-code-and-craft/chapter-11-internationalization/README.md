@@ -109,6 +109,60 @@ npm install
 npx playwright install chromium
 ```
 
+## Reference snippets
+
+### `hreflang-sitemap.example.xml`
+
+A known-good sitemap fixture with four locale variants (`en-us`,
+`en-gb`, `de`, `fr`) plus `x-default`. Every URL declares the full
+bidirectional alternates set, every URL self-references, and every
+code matches the ISO 639-1 / ISO 3166-1 Alpha-2 format. Designed
+to be a clean test input for `hreflang-validator.py` and a
+copy-pasteable starting point for your own sitemap structure.
+
+Verified to pass the validator with zero errors and zero warnings:
+
+```bash
+python hreflang-validator.py --sitemap hreflang-sitemap.example.xml
+```
+
+### `generate-hreflang-variants.example.ts`
+
+Framework-agnostic TypeScript helper that derives the hreflang
+variant URLs for the current page from `currentPath` +
+`currentLocale`. Works when locale URLs follow a consistent
+pattern (same slug across locales, only the leading locale
+segment changes). For sites that translate slugs per locale, the
+variant mapping must come from the CMS or database — the chapter
+discusses this limitation.
+
+### `locale-redirect-worker.example.js`
+
+Cloudflare Worker that handles the first-visit locale redirect
+described in the chapter. On any request to a URL without a locale
+prefix, the worker inspects `Accept-Language`, picks the best
+supported locale, and issues a **302** redirect (not 301, because
+the destination varies by user). Requests that already carry a
+locale prefix pass through unchanged, so the redirect never fires
+twice and never creates a loop.
+
+The supported locale list and locale-neutral path patterns are
+const-exported at the top of the file. Edit those for your site.
+
+### `next-app-router-i18n.example.tsx`
+
+A combined Next.js 15+ App Router reference showing how locale,
+translations, and hreflang annotations compose across a layout,
+a page, and `generateMetadata`. In a real project these would
+live in three separate files (`app/[locale]/layout.tsx`,
+`app/[locale]/product/[slug]/page.tsx`, and that page's
+`generateMetadata`); they are colocated here for readability.
+Imports `generateHreflangVariants` from the sibling helper.
+
+Uses the async `params: Promise<{ locale: string; slug: string }>`
+shape introduced in Next.js 15, consistent with the App Router
+patterns in chapters 8 and 9.
+
 ## Primary sources
 
 The scripts and the chapter both reference the same primary sources.

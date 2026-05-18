@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  hreflang-sitemap.example.xml
+
+  Reference sitemap showing the xhtml:link pattern from Chapter 11 of
+  SEO for Engineers, Volume 1. Each <url> entry declares the full set
+  of locale alternates, including a self-reference and an x-default,
+  so every node in the hreflang cluster declares every other node.
+
+  Passes the four validation passes in hreflang-validator.py in this
+  same directory:
+
+    1. Bidirectional confirmation. Every locale URL appears as an
+       alternate of every other locale URL in the cluster.
+    2. Self-reference. Every <url> includes an xhtml:link pointing
+       at its own loc.
+    3. ISO 639-1 / ISO 3166-1 Alpha-2 code format. Codes match the
+       allowed shape (language[-region], two-letter components,
+       lowercase) or x-default.
+    4. x-default presence. Each cluster includes an x-default
+       fallback.
+
+  Use this file as a known-good fixture when wiring the validator
+  into CI. Pass it as the `sitemap` argument to
+  hreflang-validator.py in this same directory; that script accepts
+  either a local file path or a remote URL.
+
+  Reference: SEO for Engineers, Volume 1, Chapter 11.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+  <url>
+    <loc>https://example.com/en-us/product/widget</loc>
+    <xhtml:link rel="alternate" hreflang="en-us"
+                href="https://example.com/en-us/product/widget" />
+    <xhtml:link rel="alternate" hreflang="en-gb"
+                href="https://example.com/en-gb/product/widget" />
+    <xhtml:link rel="alternate" hreflang="de"
+                href="https://example.com/de/produkt/widget" />
+    <xhtml:link rel="alternate" hreflang="fr"
+                href="https://example.com/fr/produit/widget" />
+    <xhtml:link rel="alternate" hreflang="x-default"
+                href="https://example.com/product/widget" />
+  </url>
+
+  <url>
+    <loc>https://example.com/en-gb/product/widget</loc>
+    <xhtml:link rel="alternate" hreflang="en-us"
+                href="https://example.com/en-us/product/widget" />
+    <xhtml:link rel="alternate" hreflang="en-gb"
+                href="https://example.com/en-gb/product/widget" />
+    <xhtml:link rel="alternate" hreflang="de"
+                href="https://example.com/de/produkt/widget" />
+    <xhtml:link rel="alternate" hreflang="fr"
+                href="https://example.com/fr/produit/widget" />
+    <xhtml:link rel="alternate" hreflang="x-default"
+                href="https://example.com/product/widget" />
+  </url>
+
+  <url>
+    <loc>https://example.com/de/produkt/widget</loc>
+    <xhtml:link rel="alternate" hreflang="en-us"
+                href="https://example.com/en-us/product/widget" />
+    <xhtml:link rel="alternate" hreflang="en-gb"
+                href="https://example.com/en-gb/product/widget" />
+    <xhtml:link rel="alternate" hreflang="de"
+                href="https://example.com/de/produkt/widget" />
+    <xhtml:link rel="alternate" hreflang="fr"
+                href="https://example.com/fr/produit/widget" />
+    <xhtml:link rel="alternate" hreflang="x-default"
+                href="https://example.com/product/widget" />
+  </url>
+
+  <url>
+    <loc>https://example.com/fr/produit/widget</loc>
+    <xhtml:link rel="alternate" hreflang="en-us"
+                href="https://example.com/en-us/product/widget" />
+    <xhtml:link rel="alternate" hreflang="en-gb"
+                href="https://example.com/en-gb/product/widget" />
+    <xhtml:link rel="alternate" hreflang="de"
+                href="https://example.com/de/produkt/widget" />
+    <xhtml:link rel="alternate" hreflang="fr"
+                href="https://example.com/fr/produit/widget" />
+    <xhtml:link rel="alternate" hreflang="x-default"
+                href="https://example.com/product/widget" />
+  </url>
+
+</urlset>
