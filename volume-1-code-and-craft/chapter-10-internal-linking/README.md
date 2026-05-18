@@ -103,6 +103,55 @@ Install:
 npm install
 npx playwright install chromium
 
+## Reference snippets
+
+### `pagination.example.tsx`
+
+The numbered-pagination React component from the chapter. Renders
+real `<a href>` links for first, last, and current ± 2 (with
+ellipses between the windows), so Googlebot has a direct path to
+any page in the series rather than walking prev/next sequentially.
+Page 1 renders without a `?page=1` query string so the canonical
+landing form stays `/category`.
+
+### `infinite-scroll-pagination.example.html`
+
+The full HTML + JS implementation of the "infinite scroll backed
+by crawlable pagination" pattern. The initial server-rendered HTML
+includes a real `<nav class="pagination">` with `<a href="?page=N">`
+links Googlebot follows. JS-enabled users get the IntersectionObserver
+overlay, which hides the static pagination and uses `history.pushState`
+to keep the address bar in sync. Includes a `renderProductCard`
+helper that HTML-escapes every user-controlled field before
+`insertAdjacentHTML`, since the same sanitization principle from
+chapter 9 (JSON-LD injection) applies to any HTML sink.
+
+### `internal-link-validator.sh`
+
+A Bash CI gate that reads a list of pages, fetches each one, and
+asserts that every same-host internal link on the page returns HTTP
+200. Pairs with `chapter-08-head-management/canonical-status-check.sh`:
+the chapter 8 script checks one specific link per page (the canonical
+tag), this one checks every internal anchor.
+
+Usage:
+
+```bash
+./internal-link-validator.sh \
+    --base-url https://example.com \
+    --urls-file urls.txt
+```
+
+Portability. The script detects whether the local `grep` supports
+PCRE (`-P`) and falls back to a Perl one-liner when it does not.
+Same cross-platform pattern as `canonical-status-check.sh` in
+chapter 8.
+
+Same-host filter. The link extractor captures both relative paths
+(`/foo`) and absolute URLs on the configured base host
+(`https://example.com/foo`), then keeps only the same-host links
+before requesting them.
+
 ## Primary sources
 
 The scripts and the chapter both reference the same primary sources.

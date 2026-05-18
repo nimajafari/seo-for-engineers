@@ -1,0 +1,141 @@
+<!--
+  infinite-scroll-pagination.example.html
+
+  Reference HTML+JS implementation of the "infinite scroll backed
+  by crawlable pagination" pattern described in Chapter 10 of SEO
+  for Engineers, Volume 1.
+
+  The design contract is the two-audience split:
+
+    1. Googlebot (and any user with JS disabled or stalled) reads
+       the initial server-rendered HTML, which includes a real
+       <nav class="pagination"> block with one <a href="?page=N">
+       per page in the series. Those anchors are the crawl path
+       Google follows to discover the rest of the catalog.
+
+    2. Users with working JS hit the IntersectionObserver branch,
+       which hides the pagination nav and replaces it with
+       infinite scroll. New pages are fetched as JSON, products
+       are appended via insertAdjacentHTML, and the address bar
+       is updated with history.pushState. The crawlable URLs
+       remain accessible by typing them in or by Googlebot
+       following the static <a href> links.
+
+  The renderProductCard function HTML-escapes every user-controlled
+  field before interpolation. insertAdjacentHTML parses the string
+  as HTML, so any unescaped <script> in a product name would
+  execute. This is the same sanitization principle as Chapter 9's
+  JSON-LD injection, just with an HTML sink.
+
+  Reference: SEO for Engineers, Volume 1, Chapter 10.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mechanical keyboards</title>
+</head>
+<body>
+  <main>
+    <h1>Mechanical keyboards</h1>
+
+    <div id="product-list" data-total-pages="10">
+      <!-- Initial 24 products rendered server-side, omitted here.
+           Each item would be a <a class="product-card" href="..."> -->
+    </div>
+
+    <!--
+      Visible pagination links for Googlebot and JS-disabled users.
+      These must be real <a> tags with href, not buttons or JS
+      event handlers. JS users see them only briefly before the
+      script below hides the nav.
+    -->
+    <nav class="pagination" aria-label="Product pages">
+      <a href="/category/keyboards?page=2">Page 2</a>
+      <a href="/category/keyboards?page=3">Page 3</a>
+      <a href="/category/keyboards?page=4">Page 4</a>
+      <!-- ... -->
+    </nav>
+  </main>
+
+  <script>
+    const productList = document.getElementById('product-list');
+    const paginationNav = document.querySelector('.pagination');
+
+    // Build the HTML for a single product card. Every
+    // user-controlled field is HTML-escaped before interpolation,
+    // because insertAdjacentHTML below parses the string as HTML
+    // and would otherwise execute any <script> a malicious product
+    // name contained.
+    function renderProductCard(product) {
+      const escape = (s) =>
+        String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+
+      return `
+        <a href="${escape(product.url)}" class="product-card">
+          <img
+            src="${escape(product.thumbnailUrl)}"
+            alt="${escape(product.name)}"
+            width="300"
+            height="300"
+            loading="lazy"
+          />
+          <h2>${escape(product.name)}</h2>
+          <span class="price">${escape(product.price)}</span>
+        </a>
+      `;
+    }
+
+    if ('IntersectionObserver' in window) {
+      // JS-enabled path: replace static pagination with infinite scroll.
+      paginationNav.style.display = 'none';
+
+      const sentinel = document.createElement('div');
+      sentinel.id = 'scroll-sentinel';
+      productList.after(sentinel);
+
+      let nextPage = 2;
+      const totalPages = Number(productList.dataset.totalPages) || 1;
+
+      const observer = new IntersectionObserver(async (entries) => {
+        if (!entries[0].isIntersecting || nextPage > totalPages) return;
+
+        const response = await fetch(
+          `/api/category/keyboards?page=${nextPage}`,
+          { headers: { Accept: 'application/json' } },
+        );
+        const data = await response.json();
+
+        data.products.forEach((product) => {
+          productList.insertAdjacentHTML(
+            'beforeend',
+            renderProductCard(product),
+          );
+        });
+
+        // Update the address bar without a page reload so the user
+        // (and any subsequent reload or share) lands on the deepest
+        // page they actually scrolled to.
+        history.pushState(
+          { page: nextPage },
+          '',
+          `/category/keyboards?page=${nextPage}`,
+        );
+
+        nextPage++;
+      }, { rootMargin: '200px' });
+
+      observer.observe(sentinel);
+    }
+
+    // If IntersectionObserver is unavailable (or Googlebot is doing
+    // a static fetch without JS), the <a href> pagination links
+    // above remain visible and crawlable. No fallback code is
+    // needed; the default state of the DOM is the fallback.
+  </script>
+</body>
+</html>
