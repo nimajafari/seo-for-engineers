@@ -5,10 +5,14 @@
   "type": "module",
   "description": "Head management diagnostic scripts for Chapter 8 of SEO for Engineers, Volume 1.",
   "scripts": {
-    "gate:noindex": "node noindex-deployment-gate.js"
+    "gate:noindex": "node noindex-deployment-gate.js",
+    "audit:head": "playwright test head-audit.spec.ts"
   },
   "dependencies": {
     "playwright": "^1.45.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0"
   },
   "engines": {
     "node": ">=18"

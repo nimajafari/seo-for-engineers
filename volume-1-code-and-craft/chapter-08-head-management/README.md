@@ -115,6 +115,74 @@ This means the same file runs on Linux CI runners (GNU grep
 available) and on macOS developer machines (BSD grep, no `-P`)
 without changes.
 
+## Reference snippets
+
+### `head-audit.spec.ts`
+
+A Playwright `@playwright/test` spec that runs the chapter's full
+head-correctness audit across a list of URLs. For each URL it asserts
+exactly one `<title>` (non-empty, non-placeholder), exactly one
+absolute canonical, the indexing posture (combined `X-Robots-Tag`
+header + `<meta name="robots">`) matches the page's `shouldIndex`
+flag, and `og:title` + absolute `og:image` are present. Run with:
+
+```bash
+npm install
+npx playwright install chromium
+npx playwright test head-audit.spec.ts
+```
+
+Edit the `PAGES_TO_AUDIT` array at the top of the spec to point at
+your staging URLs.
+
+### `generate-title.example.js`
+
+ES module exporting `generateTitle(page, site)`, a per-page-type
+title templating function for sites with too many pages to write
+titles by hand. Falls back to `<h1> + brand` for unknown page types
+and to brand-alone if both are missing, so no page ships with an
+empty title.
+
+`generate-title.example.test.js` is a colocated test file using
+Node's built-in test runner (no test-framework dependency required).
+Run with:
+
+```bash
+node --test generate-title.example.test.js
+```
+
+Asserts the chapter's two title invariants: every page type produces
+a non-empty title, and distinct content does not collapse to the
+same string.
+
+### `og-image-route.example.tsx`
+
+Reference Next.js App Router route handler that generates a 1200x630
+Open Graph PNG from query-string parameters using `next/og`'s
+`ImageResponse`. Drop the file at `app/api/og/route.tsx` in any
+Next.js 14+ project. The route runs on the Edge runtime, so first-
+fetch latency from social scrapers stays low.
+
+### `gsc-index-coverage.py`
+
+A Python script that calls the Google Search Console URL Inspection
+API for one or more URLs and emits the indexing verdict, robots.txt
+state, Google-selected canonical, last crawl time, and related
+fields as JSON. Designed for daily cron + observability pipeline
+ingestion, so indexing-state regressions surface as graph movement
+before they become traffic loss.
+
+Requires extra dependencies not in this directory's
+`requirements.txt`:
+
+```bash
+pip install google-api-python-client google-auth
+```
+
+You also need a Google Cloud service account with Search Console
+property access. Pass the JSON key path with `--service-account` or
+set `GOOGLE_APPLICATION_CREDENTIALS`.
+
 ## Wiring into CI
 
 A typical pre-deployment workflow runs both scripts.
