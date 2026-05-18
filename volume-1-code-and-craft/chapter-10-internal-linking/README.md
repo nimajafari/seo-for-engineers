@@ -42,8 +42,13 @@ The script computes the following.
   so values sum to 1.
 
 The crawl export CSV is expected to have at least two columns,
-`source` and `destination`. An `anchor` column is read if present
-but is not required.
+`source_url` and `target_url`. The legacy names `source` and
+`destination` are also accepted for backward compatibility. An
+`anchor` column is read if present but is not required.
+
+The `source_url` / `target_url` convention matches the column
+names used by Chapter 4's `link-graph-audit.py`, so a single
+crawl export can feed both tools.
 
 Usage:
 Analyze a crawl export

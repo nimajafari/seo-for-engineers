@@ -59,29 +59,48 @@ def build_graph(crawl_export_path: Path) -> nx.DiGraph:
     """
     Build a directed graph from a crawler export CSV.
 
-    The CSV is expected to have 'source' and 'destination' columns at
-    minimum. An optional 'anchor' column is preserved on each edge if
-    present.
+    The CSV is expected to have ``source_url`` and ``target_url``
+    columns at minimum. The legacy column names ``source`` and
+    ``destination`` are also accepted for backward compatibility,
+    so older exports continue to work. An optional ``anchor`` column
+    is preserved on each edge if present.
+
+    The ``source_url`` / ``target_url`` convention matches the column
+    names used by Chapter 4's link-graph-audit script, so a single
+    crawl export feeds both tools.
     """
     g = nx.DiGraph()
 
     with open(crawl_export_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
+        fields = set(reader.fieldnames or [])
 
-        if reader.fieldnames is None or "source" not in reader.fieldnames:
+        # Pick the source column. Prefer the canonical name; accept
+        # the legacy alias.
+        if "source_url" in fields:
+            source_col = "source_url"
+        elif "source" in fields:
+            source_col = "source"
+        else:
             raise ValueError(
-                "Crawl export must have a 'source' column. "
-                f"Found columns: {reader.fieldnames}"
+                "Crawl export must have a 'source_url' (or legacy "
+                f"'source') column. Found columns: {reader.fieldnames}"
             )
-        if "destination" not in reader.fieldnames:
+
+        # Same for the target column.
+        if "target_url" in fields:
+            target_col = "target_url"
+        elif "destination" in fields:
+            target_col = "destination"
+        else:
             raise ValueError(
-                "Crawl export must have a 'destination' column. "
-                f"Found columns: {reader.fieldnames}"
+                "Crawl export must have a 'target_url' (or legacy "
+                f"'destination') column. Found columns: {reader.fieldnames}"
             )
 
         for row in reader:
-            source = (row.get("source") or "").strip()
-            destination = (row.get("destination") or "").strip()
+            source = (row.get(source_col) or "").strip()
+            destination = (row.get(target_col) or "").strip()
             if not source or not destination:
                 continue
             anchor = (row.get("anchor") or "").strip()
