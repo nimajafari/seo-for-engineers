@@ -1,0 +1,13 @@
+{
+  "name": "chapter-15-robots-txt-nodejs-check",
+  "version": "1.0.0",
+  "description": "Node.js robots.txt validation using the robots-parser library. Companion to Chapter 15 of SEO for Engineers.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "check": "node check-robots-nodejs.mjs"
+  },
+  "dependencies": {
+    "robots-parser": "^3.0.1"
+  }
+}

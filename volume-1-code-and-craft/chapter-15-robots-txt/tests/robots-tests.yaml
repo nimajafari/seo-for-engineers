@@ -1,0 +1,29 @@
+allowed:
+  - user_agent: Googlebot
+    url: https://www.example.com/
+  - user_agent: Googlebot
+    url: https://www.example.com/products/
+  - user_agent: Googlebot
+    url: https://www.example.com/products/category/shoes
+  - user_agent: Googlebot
+    url: https://www.example.com/blog/
+  - user_agent: Googlebot
+    url: https://www.example.com/sitemap.xml
+  - user_agent: Googlebot
+    url: https://www.example.com/static/app.css
+  - user_agent: Googlebot
+    url: https://www.example.com/static/app.js
+  - user_agent: Googlebot-Image
+    url: https://www.example.com/images/hero.jpg
+
+blocked:
+  - user_agent: Googlebot
+    url: https://www.example.com/admin/
+  - user_agent: Googlebot
+    url: https://www.example.com/admin/users
+  - user_agent: Googlebot
+    url: https://www.example.com/cart
+  - user_agent: Googlebot
+    url: https://www.example.com/account/settings
+  - user_agent: Googlebot
+    url: https://www.example.com/search?q=anything
