@@ -539,3 +539,175 @@ Slug pattern examples referenced in the chapter.
 
 - *unidecode, ASCII transliteration of Unicode text.* PyPI.
   https://pypi.org/project/Unidecode/
+
+
+### Chapter 13, HTTP Fundamentals for SEO
+
+Google guidance on HTTP responses and redirects.
+
+- *301 redirects.* (Also cited in Chapter 3.)
+  Cited for: redirect chain limits (Googlebot follows up to 10
+  redirects), and the canonical mechanism for transferring ranking
+  signals between URLs.
+
+- *Do 404s hurt my site?* Google Search Central Blog, May 2011.
+  https://developers.google.com/search/blog/2011/05/do-404s-hurt-my-site
+  Cited for: Google's published position that 404 responses for
+  legitimately removed URLs are correct behavior and do not damage
+  site rankings.
+
+- *Robots meta tag, data-nosnippet, and X-Robots-Tag specifications.*
+  (Also cited in Chapter 8.)
+  Cited for: the rule that conflicts between HTML meta robots and
+  HTTP X-Robots-Tag are resolved by taking the most restrictive
+  directive, and the use of X-Robots-Tag for non-HTML resources.
+
+- *Understand the JavaScript SEO basics.* (Also cited in Chapter 2.)
+  Cited for: Google's withdrawal of dynamic rendering as a
+  recommendation. The remaining documentation describes dynamic
+  rendering in the past tense as a workaround, not a long-term
+  solution, with SSR, SSG, or hydration as the current recommendations.
+
+- *HTTPS as a ranking signal.* (Also cited in Chapter 4.)
+  Cited for: HTTPS as a confirmed ranking signal since 2014.
+
+- *HTTPS issues in Search Console.* Google Search Console Help.
+  https://support.google.com/webmasters/answer/6073543
+- *Secure your site with HTTPS.* Google Search Central.
+  https://developers.google.com/search/docs/advanced/security/https
+  Both cited for: Google's framing of certificate validity failures
+  as causing crawl failures, and the impact chain from TLS handshake
+  failure to coverage loss.
+
+HTTP specifications.
+
+- *RFC 9110, HTTP Semantics.* IETF.
+  https://datatracker.ietf.org/doc/html/rfc9110
+  Cited for: the current authoritative reference for HTTP status
+  code semantics, redirect types, and response header behavior.
+
+- *RFC 8297, An HTTP Status Code for Indicating Hints (103 Early Hints).* IETF.
+  https://datatracker.ietf.org/doc/html/rfc8297
+  Cited for: the Early Hints specification, including the 103
+  status code semantics and the rule that Link headers delivered
+  in Early Hints permit speculative subresource fetching.
+
+- *Cloudflare Early Hints documentation.*
+  https://developers.cloudflare.com/cache/advanced-configuration/early-hints
+  Cited for: the CDN-level automatic Early Hints implementation
+  pattern, where the CDN learns preload candidates from prior
+  request analysis.
+
+- *Remove HTTP/2 Server Push.* Chrome Platform Status.
+  https://chromestatus.com/feature/6302414934114304
+  Cited for: the Chrome 106 (October 2022) removal of HTTP/2
+  Server Push support, with the documented reasoning around cache
+  mismatch, timing, complexity, and bandwidth competition.
+
+TLS, certificate, and PKI references.
+
+- *RFC 5280, Internet X.509 Public Key Infrastructure Certificate
+  and Certificate Revocation List (CRL) Profile.* IETF.
+  https://datatracker.ietf.org/doc/html/rfc5280
+  Cited for: the CRL specification, the CRL Distribution Point
+  certificate extension, and the X.509 chain validation model.
+
+- *RFC 6066, Transport Layer Security (TLS) Extensions, Section 8.*
+  IETF.
+  https://datatracker.ietf.org/doc/html/rfc6066#section-8
+  Cited for: the TLS Certificate Status Request extension that
+  underpins OCSP stapling.
+
+- *RFC 6125, Representation and Verification of Domain-Based
+  Application Service Identity Within Internet Public Key
+  Infrastructure Using X.509 Certificates.* IETF.
+  https://datatracker.ietf.org/doc/html/rfc6125
+  Cited for: the deprecation of Common Name (CN) based hostname
+  matching in favor of Subject Alternative Name (SAN) only.
+
+- *RFC 6960, X.509 Internet Public Key Infrastructure Online
+  Certificate Status Protocol, OCSP.* IETF.
+  https://datatracker.ietf.org/doc/html/rfc6960
+  Cited for: the OCSP specification including request/response
+  format, the good/revoked/unknown status values, and the
+  latency and privacy properties that motivated stapling.
+
+- *RFC 7633, X.509v3 Transport Layer Security (TLS) Feature
+  Extension.* IETF.
+  https://datatracker.ietf.org/doc/html/rfc7633
+  Cited for: the Must-Staple extension specification (OID
+  1.3.6.1.5.5.7.1.24) and its hard-fail semantics.
+
+- Langley, A. (2012). *Revocation checking and Chrome's CRL.*
+  https://www.imperialviolet.org/2012/02/05/crlsets.html
+  Cited for: the foundational analysis of OCSP latency (median
+  ~300ms, mean close to 1 second) and the soft-fail problem that
+  motivated Chrome's move away from live OCSP checks.
+
+- *OCSP stapling.* Wikipedia.
+  https://en.wikipedia.org/wiki/OCSP_stapling
+  Cited for: the documented Apache historical failure pattern of
+  discarding a cached good response on temporary failure rather
+  than serving it.
+
+- Cloudflare (2017). *High-reliability OCSP stapling and why it matters.*
+  https://blog.cloudflare.com/high-reliability-ocsp-stapling/
+  Cited for: the engineering writeup on Must-Staple deployment risk
+  and the patterns required for reliable OCSP stapling at scale.
+
+- Jafari, N. and Mansouri, M. *CRL vs OCSP Explained, Complete Guide
+  to Stapling and Must-Staple.* OxyPlug.
+  https://www.oxyplug.com/optimization/crl-ocsp-certificate-revocation-methods/
+  Author's own work, cited for: the timing experiments showing OCSP
+  validation averaging approximately 134ms and CRL download
+  averaging approximately 458ms in real-world handshake measurements.
+
+CA/Browser Forum and ecosystem changes 2024-2026.
+
+- *Ballot SC-081v3, Introduce Schedule of Reducing Validity and Data
+  Reuse Periods.* CA/Browser Forum, April 11, 2025.
+  https://cabforum.org/2025/04/11/ballot-sc081v3-introduce-schedule-of-reducing-validity-and-data-reuse-periods/
+  Cited for: the phased reduction of TLS certificate validity to
+  200 days (March 15, 2026), 100 days (March 15, 2027), and 47
+  days (March 15, 2029), with corresponding reductions in domain
+  control validation reuse periods to 10 days by 2029.
+
+- Let's Encrypt (2024). *Ending OCSP Support in 2025.*
+  https://letsencrypt.org/2024/12/05/ending-ocsp/
+  Cited for: the announced timeline of OCSP Must-Staple issuance
+  blocked for new accounts on January 30, 2025, OCSP URLs dropped
+  from certificates on May 7, 2025, and OCSP responders fully
+  decommissioned on August 6, 2025.
+
+- Let's Encrypt (2025). *OCSP Service Has Reached End of Life.*
+  https://letsencrypt.org/2025/08/06/ocsp-service-has-reached-end-of-life/
+  Cited for: confirmation that Let's Encrypt's OCSP service was
+  fully shut down on August 6, 2025, and the operational
+  justifications including approximately 340 billion OCSP requests
+  per month at the service's peak.
+
+- Mozilla (2025). *CRLite, Fast, private, and comprehensive
+  certificate revocation checking in Firefox.*
+  https://hacks.mozilla.org/2025/08/crlite-fast-private-and-comprehensive-certificate-revocation-checking-in-firefox/
+  Cited for: the enabling of CRLite for all Firefox desktop users
+  starting in Firefox 137 (April 1, 2025), with 12-hour update
+  intervals and local-only revocation checking.
+
+- *Chromium CRLSets.* Chromium Projects.
+  https://www.chromium.org/Home/chromium-security/crlsets/
+  Cited for: Chrome's curated CRLSets mechanism as a narrow,
+  emergency-focused revocation distribution channel rather than
+  comprehensive coverage.
+
+- *HSTS Preload List.* Google.
+  https://hstspreload.org
+  Cited for: the Chromium HSTS preload list, which hardcodes HTTPS
+  enforcement into the browser for participating domains.
+
+Diagnostic tooling.
+
+- *SSL Labs SSL Server Test.* Qualys.
+  https://www.ssllabs.com/ssltest/
+  Cited for: the standard external diagnostic for chain
+  completeness, certificate configuration, and TLS handshake
+  details, including the explicit "Chain issues" flag.
