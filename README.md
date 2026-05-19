@@ -62,7 +62,14 @@ its chapter README. None is theoretical.
 ├── chapter-08-head-management/
 ├── chapter-09-structured-data/
 ├── chapter-10-internal-linking/
-├── ...
+├── chapter-11-internationalization/
+├── chapter-12-url-design/
+├── chapter-13-http-fundamentals/
+├── chapter-14-sitemaps/
+├── chapter-15-robots-txt/
+├── chapter-16-crawl-budget/
+├── chapter-17-faceted-navigation/
+├── chapter-18-log-analysis/
 └── chapter-19-headless/
 
 Every chapter directory follows the same shape:chapter-NN-topic/
