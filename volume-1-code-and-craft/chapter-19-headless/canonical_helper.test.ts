@@ -139,6 +139,5 @@ test('isValidUrl rejects non-http(s) protocols', () => {
 
 test('isValidUrl rejects empty and null', () => {
   assert.equal(isValidUrl(''), false);
-  // @ts-expect-error: testing runtime safety
   assert.equal(isValidUrl(null), false);
 });

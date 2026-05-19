@@ -1,0 +1,22 @@
+{
+  "name": "seo-for-engineers-chapter-19",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless SEO reference helpers and tests for Chapter 19 of SEO for Engineers, Volume 1.",
+  "scripts": {
+    "test": "tsx --test canonical_helper.test.ts product_schema.test.tsx"
+  },
+  "dependencies": {
+    "react": "^18.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
