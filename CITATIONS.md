@@ -792,3 +792,402 @@ Engineering tooling referenced in the chapter.
   sitemaps over the 50,000-URL limit without loading the full URL set
   into memory.
 
+
+
+### Chapter 15, robots.txt, The Specification Engineers Should Actually Read
+
+The protocol specification.
+
+- *RFC 9309, Robots Exclusion Protocol.* IETF, September 2022.
+  Authors: M. Koster, G. Illyes, H. Zeller, L. Sassman.
+  https://www.rfc-editor.org/rfc/rfc9309.html
+  Cited for: the formal protocol, group selection (Section 2.2.1),
+  path matching (Section 2.2.2), `Allow` and `Disallow` semantics,
+  the 500 kibibyte parser size limit, redirect handling, and HTTP
+  status code interpretation. This is the baseline against which
+  any crawler-specific behavior is measured.
+
+- *Robots Exclusion Protocol draft (1996).* Martijn Koster.
+  https://www.robotstxt.org/orig.html
+  Cited for: the historical context of the 1994 proposal and the
+  twenty-eight-year period during which the protocol existed as a de
+  facto convention before formalization.
+
+Google's parser and documentation.
+
+- *Google's robots.txt parser and matcher library.* GitHub.
+  https://github.com/google/robotstxt
+  Cited for: the canonical reference implementation of how Googlebot
+  parses `robots.txt`. The C++ source is the unambiguous answer to
+  any disputed parsing question for Google's crawlers.
+
+- *How Google interprets the robots.txt specification.* Google
+  Search Central documentation.
+  https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt
+  Cited for: the 24-hour cache duration, `max-age` honoring, the
+  same-token group merge behavior (Google's extension beyond RFC
+  9309), HTTP status code handling, redirect behavior (up to five
+  hops), the explicit statement that `Crawl-delay` is not supported,
+  and the rule precedence semantics including the "least restrictive
+  rule wins" tie-breaker.
+
+- *Introduction to robots.txt.* Google Search Central.
+  https://developers.google.com/search/docs/crawling-indexing/robots/intro
+  Cited for: the explicit statement that a `robots.txt` disallow is
+  not an indexing directive, which is the basis of the chapter's
+  argument that engineers must distinguish crawling from indexing.
+
+- *Updating our technical Webmaster Guidelines.* Google Search
+  Central blog (October 2014).
+  https://developers.google.com/search/blog/2014/10/updating-our-technical-webmaster
+  Cited for: the formal guidance that Googlebot must be allowed to
+  fetch CSS and JavaScript for correct rendering. This is the
+  basis of the chapter's failure mode covering blocked asset paths.
+
+- *Understand the JavaScript SEO basics.* Google Search Central.
+  https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics
+  Cited for: the current guidance on JavaScript rendering and the
+  requirement to allow crawl access to JavaScript files.
+
+- *robots.txt report.* Google Search Console help.
+  https://support.google.com/webmasters/answer/6062598
+  Cited for: the post-tester-retirement diagnostic surface. The
+  standalone `robots.txt` Tester was retired on December 12, 2023;
+  live testing is now part of URL Inspection and the `robots.txt`
+  report under Settings.
+
+- *Overview of Google crawlers (user agents).* Google Search
+  Central.
+  https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers
+  Cited for: the complete list of Googlebot product tokens
+  (`Googlebot`, `Googlebot-Image`, `Googlebot-News`, etc.) used in
+  the `User-agent` examples.
+
+Engineering tooling referenced in the chapter.
+
+- *robots-parser (npm).* GitHub / npm.
+  https://www.npmjs.com/package/robots-parser
+  Cited for: the standard Node.js library for testing `robots.txt`
+  rules against URLs. Used in the Node.js CI check example.
+
+- *Little Warden.* https://littlewarden.com/
+  Cited for: the page-alerting tool referenced in the catastrophic
+  failure section as a defense layer for unexpected `robots.txt`
+  changes.
+
+- *Conductor ContentKing.* https://www.conductor.com/contentking/
+  Cited for: the change-monitoring platform referenced in the same
+  defense layer. ContentKing was acquired by Conductor in 2022.
+
+
+### Chapter 16, Crawl Budget
+
+Google's crawl budget documentation.
+
+- *What crawl budget means for Googlebot.* Google Search Central
+  blog (January 2017).
+  https://developers.google.com/search/blog/2017/01/what-crawl-budget-means-for-googlebot
+  Cited for: the original public framing of crawl budget as the
+  product of crawl capacity and crawl demand, and the explicit
+  statement that most sites do not need to worry about it.
+
+- *Large site owner's guide to managing your crawl budget.* Google
+  Search Central documentation.
+  https://developers.google.com/search/docs/crawling-indexing/large-site-managing-crawl-budget
+  Cited for: the current long-form guidance on crawl budget, the
+  three demand signals (perceived inventory, popularity, staleness),
+  and the framing of which sites benefit from active management.
+
+- *Upcoming deprecation of Crawl Rate Limiter Tool in Search
+  Console.* Google Search Central blog (November 2023).
+  https://developers.google.com/search/blog/2023/11/sc-crawl-limiter-byebye
+  Cited for: the formal deprecation of the manual crawl rate
+  setting, effective January 8, 2024. The post also documents how
+  Googlebot now responds to deliberate rate-limiting signals via
+  `503` and `429` HTTP status codes, which is the supported
+  replacement for the removed manual lever.
+
+- *Spring cleaning: the URL Parameters tool.* Google Search Central
+  blog (March 2022).
+  https://developers.google.com/search/blog/2022/03/url-parameters-tool-deprecated
+  Cited for: the formal deprecation of the URL Parameters tool,
+  effective April 26, 2022. Google's stated rationale, that only
+  1% of parameter configurations specified in the tool had ever
+  been useful, is the basis of the chapter's argument that
+  parameter handling has moved into the engineering layers
+  (canonical tags, edge stripping, `robots.txt` disallow) rather
+  than a webmaster tool surface.
+
+- *Verifying Googlebot and other Google crawlers.* Google Search
+  Central documentation.
+  https://developers.google.com/search/docs/crawling-indexing/verifying-googlebot
+  Cited for: the canonical method for verifying that a request is
+  actually from Googlebot, by reverse DNS or by matching against
+  Google's published IP ranges. This is the basis of
+  `verify-googlebot.py`.
+
+- *Googlebot IP ranges (JSON).* Google.
+  https://developers.google.com/search/apis/ipranges/googlebot.json
+  Cited for: the machine-readable source of Googlebot's current
+  IP ranges, fetched at runtime by the verification script.
+
+- *Overview of Google crawlers (user agents).* Google Search
+  Central.
+  https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers
+  Cited for: the complete list of Google product tokens
+  (`Googlebot`, `Googlebot-Image`, `Googlebot-News`,
+  `Googlebot-Video`, `Storebot-Google`, `AdsBot-Google`, etc.) used
+  in the verification script's user-agent matching.
+
+- *Crawl Stats report.* Google Search Console help.
+  https://support.google.com/webmasters/answer/9679690
+  Cited for: the Search Console diagnostic surface for crawl
+  volume and host status trends. The chapter argues this is the
+  right starting point for trend detection but inadequate for
+  URL-level diagnosis at scale, which is where log analysis comes
+  in.
+
+- *Search engine optimization (SEO) starter guide, internal search
+  result pages.* Google Search Central, spam policies.
+  https://developers.google.com/search/docs/essentials/spam-policies
+  Cited for: Google's stated guidance that internal search result
+  pages should not be indexed, which is the basis of the chapter's
+  treatment of internal search URLs as crawl waste.
+
+- *Sitemaps overview.* Google Search Central documentation.
+  https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview
+  Cited for: the explicit statement that sitemap inclusion is a
+  signal, not a guarantee. This is the basis of the chapter's
+  Symptom 2 diagnostic, sitemap-submitted URLs not crawled.
+
+### Chapter 17, Faceted Navigation
+
+Google's faceted navigation documentation.
+
+- *Faceted navigation best (and 5 of the worst) practices.* Google
+  Search Central blog (February 2014).
+  https://developers.google.com/search/blog/2014/02/faceted-navigation-best-and-5-of-worst
+  Cited for: the foundational public articulation of the faceted
+  navigation problem, including the five worst-practice patterns
+  the chapter's hybrid five-tier architecture is designed to
+  prevent.
+
+- *Manage your crawl budget, faceted navigation.* Google Search
+  Central documentation.
+  https://developers.google.com/search/docs/crawling-indexing/crawl-large-sites#faceted-navigation
+  Cited for: Google's current canonical guidance on faceted
+  navigation as a crawl budget problem, and the recommended
+  mitigation strategies that map to the chapter's four-strategy
+  framework.
+
+Canonicalization and indexing directives.
+
+- *Consolidate duplicate URLs with canonical tags.* Google Search
+  Central documentation.
+  https://developers.google.com/search/docs/crawling-indexing/canonicalization
+  Cited for: the canonicalization pipeline that determines whether
+  Google honors a `rel="canonical"` hint. The chapter's argument
+  that canonicals are hints, not directives, is grounded in this
+  documentation.
+
+- *Block search indexing with noindex.* Google Search Central
+  documentation.
+  https://developers.google.com/search/docs/crawling-indexing/block-indexing
+  Cited for: the distinction between crawling and indexing that the
+  chapter's Strategy 1 versus Strategy 4 discussion turns on.
+
+- *Robots meta tag, data-nosnippet, and X-Robots-Tag specifications.*
+  Google Search Central documentation.
+  https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag
+  Cited for: the full reference for `<meta name="robots">` and the
+  `X-Robots-Tag` HTTP header, including the `noindex, follow`
+  combination used by Strategy 4.
+
+Pagination and historical references.
+
+- *Indexing pagination, rel=prev/next.* Google Search Central blog
+  (March 2019).
+  https://developers.google.com/search/blog/2019/03/prev-next
+  Cited for: the formal deprecation of `rel=next/prev` as an
+  indexing signal, announced March 21, 2019, with Google stating
+  it had not been used as a signal for years prior to the
+  announcement.
+
+Web linking specifications.
+
+- *RFC 8288, Web Linking.* IETF (October 2017).
+  https://www.rfc-editor.org/rfc/rfc8288
+  Cited for: the specification for the HTTP `Link:` header used as
+  an alternative to the `<link rel="canonical">` HTML tag,
+  particularly for non-HTML resources. RFC 8288 obsoleted RFC 5988
+  in 2017.
+
+- *RFC 9309, Robots Exclusion Protocol.* IETF (September 2022).
+  https://www.rfc-editor.org/rfc/rfc9309
+  Cited for: the formal robots.txt specification used as the
+  foundation of Strategy 1. The chapter relies on Chapter 15's
+  fuller treatment of the protocol.
+
+Engineering tooling referenced in the chapter.
+
+- *Google's robots.txt parser and matcher library.* GitHub.
+  https://github.com/google/robotstxt
+  Cited for: the canonical reference parser used in the CI check
+  example. Same source as Chapter 15.
+
+### Chapter 18, Log File Analysis for Backend Engineers
+
+Search Console and Google crawler documentation.
+
+- *Crawl Stats report.* Google Search Console help.
+  https://support.google.com/webmasters/answer/9679690
+  Cited for: the aggregated host-level crawl data Search Console
+  exposes, and what it does not expose (URL-level crawl history).
+  This is the basis for the chapter's argument that logs are the
+  only source of URL-level crawl truth.
+
+- *What crawl budget means for Googlebot.* Google Search Central
+  blog, January 2017.
+  https://developers.google.com/search/blog/2017/01/what-crawl-budget-means-for-googlebot
+  Cited for: Google's foundational framing of crawl budget in
+  log-observable terms. Referenced earlier in Chapter 16.
+
+- *Verifying Googlebot and other Google crawlers.* Google Search
+  Central documentation.
+  https://developers.google.com/search/docs/crawling-indexing/verifying-googlebot
+  Cited for: the two canonical Googlebot verification methods
+  (reverse DNS and IP range matching). Same source as Chapter 16.
+
+- *Search Console URL Inspection API reference.* Google Search
+  Central API documentation.
+  https://developers.google.com/webmaster-tools/v1/urlInspection.index
+  Cited for: the programmatic interface to URL-level index
+  status, used in the chapter's crawl-by-index correlation. The
+  per-property quota is 2,000 queries per day, 600 per minute
+  (per the Search Console API usage limits page,
+  developers.google.com/webmaster-tools/limits).
+
+Crawler IP range sources.
+
+- *Googlebot IP ranges (JSON).* Google.
+  https://developers.google.com/search/apis/ipranges/googlebot.json
+  Cited for: the machine-readable source for Googlebot's web
+  search crawler IPs. Used by both `verify_crawler.py` and
+  `enrich_logs.py`.
+
+- *Special-purpose Google crawlers (JSON).*
+  https://developers.google.com/search/apis/ipranges/special-crawlers.json
+  Cited for: the Googlebot family beyond the primary crawler
+  (Image, News, Video, AdsBot, Storebot, GoogleOther).
+
+- *User-triggered Google fetchers (JSON).*
+  https://developers.google.com/search/apis/ipranges/user-triggered-fetchers.json
+  Cited for: the on-demand Google fetchers (Site Verification,
+  URL Inspection tool, Read Aloud). These are not search crawlers
+  and should be excluded from crawl budget analysis.
+
+- *Bingbot IP ranges (JSON).* Microsoft Bing Webmaster Tools.
+  https://www.bing.com/toolbox/bingbot.json
+  Cited for: the machine-readable source for Bingbot, BingPreview,
+  and MSN bot IPs. Same shape as Google's JSON.
+
+- *About Applebot.* Apple Support, article 119829.
+  https://support.apple.com/en-us/119829
+  Cited for: Applebot's user-agent format and reverse DNS
+  verification pattern. Apple does not publish a JSON range file
+  (as of writing), so Applebot verification is reverse-DNS only.
+  This URL replaced the legacy HT204683 URL in 2024.
+
+- *GPTBot, OAI-SearchBot, and ChatGPT-User.* OpenAI documentation.
+  Published IP range JSON files at openai.com/gptbot.json,
+  openai.com/searchbot.json, and openai.com/chatgpt-user.json.
+  Cited for: the three OpenAI crawler families and the distinction
+  between AI training (GPTBot), AI search (OAI-SearchBot), and
+  user-triggered fetches (ChatGPT-User).
+
+Tools and engines referenced.
+
+- *DuckDB.* https://duckdb.org
+  Cited for: the embedded analytical database the chapter
+  recommends as the Tier 2 (single-machine) analysis engine.
+  Used by `enrich_logs.py` for the IP verification UDF and the
+  Parquet write step.
+
+- *Cloudflare Logpush.* Cloudflare Logs documentation.
+  https://developers.cloudflare.com/logs/logpush/
+  Cited for: the CDN log streaming source the chapter recommends
+  for the primary SEO analysis layer. Available on Business and
+  Enterprise plans as of 2026.
+
+- *AWS ALB access logs.* AWS documentation.
+  https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.html
+  Cited for: the standard schema and field documentation used by
+  `parse_logs.py` to read ALB logs.
+
+### Chapter 19, APIs, Headless Architecture, and SEO
+
+Google JavaScript SEO and rendering documentation.
+
+- *JavaScript SEO basics.* Google Search Central documentation.
+  https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics
+  Cited for: Google's official position on JavaScript-rendered
+  content. Confirms that Googlebot does render JavaScript but
+  that rendering is deferred and queued, which is the basis for
+  the chapter's argument against CSR-only headless deployments.
+
+- *Soft 404 errors.* Google Search Central documentation, HTTP
+  and network errors section.
+  https://developers.google.com/search/docs/crawling-indexing/http-network-errors#soft-404-errors
+  Cited for: Google's definition of soft 404s and why they are a
+  correctness issue. The basis for the chapter's argument that
+  every page handler must have an explicit "content not found →
+  404" branch.
+
+- *URL Inspection tool.* Google Search Console help, article 9012289.
+  https://support.google.com/webmasters/answer/9012289
+  Cited for: the tool the chapter recommends for comparing what
+  the origin serves against what Google indexes. The "rendered
+  HTML" view exposes the gap most likely to exist in CSR or
+  ISR-heavy setups.
+
+Structured data and validation.
+
+- *Introduction to structured data markup in Google Search.*
+  Google Search Central documentation.
+  https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data
+  Cited for: the requirement that structured data must accurately
+  represent the content on the page. The basis for the chapter's
+  pattern of computing JSON-LD from the same data object as the
+  rendered body.
+
+- *Schema Markup Validator.* Schema.org.
+  https://validator.schema.org/
+  Cited for: the machine-readable validator the chapter
+  recommends for CI integration of structured data validation.
+
+- *Rich Results Test.* Google.
+  https://search.google.com/test/rich-results
+  Cited for: the Google-specific structured data validator that
+  reports which rich result types your markup is eligible for.
+
+- *schema-dts.* GitHub, google/schema-dts.
+  https://github.com/google/schema-dts
+  Cited for: TypeScript types for Schema.org, used to catch
+  structural errors in JSON-LD at compile time rather than at
+  runtime. The library the chapter recommends for typed
+  structured data in TypeScript codebases.
+
+Framework documentation referenced in the chapter.
+
+- *generateMetadata function reference.* Next.js documentation.
+  https://nextjs.org/docs/app/api-reference/functions/generate-metadata
+  Cited for: the server-side metadata composition pattern the
+  chapter uses in its primary example. Confirmed as current
+  Next.js App Router practice as of 2026.
+
+- *notFound function and file-system conventions.* Next.js
+  documentation.
+  https://nextjs.org/docs/app/api-reference/file-conventions/not-found
+  Cited for: the canonical pattern for emitting real 404s in
+  Next.js App Router. The basis for the chapter's anti-soft-404
+  pattern.
