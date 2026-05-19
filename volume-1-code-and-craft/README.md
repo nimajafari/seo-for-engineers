@@ -30,3 +30,9 @@ sitemaps, robots.txt, and crawl budget shape what can be indexed.
 
 - [Chapter 12, URL Design as an Engineering Discipline](chapter-12-url-design/)
 - [Chapter 13, HTTP Fundamentals for SEO](chapter-13-http-fundamentals/)
+- [Chapter 14, Sitemaps as a Backend Responsibility](chapter-14-sitemaps/)
+- [Chapter 15, robots.txt, The Specification Engineers Should Actually Read](chapter-15-robots-txt/)
+- [Chapter 16, Crawl Budget](chapter-16-crawl-budget/)
+- [Chapter 17, Faceted Navigation](chapter-17-faceted-navigation/)
+- [Chapter 18, Log File Analysis for Backend Engineers](chapter-18-log-analysis/)
+- [Chapter 19, APIs, Headless Architecture, and SEO](chapter-19-headless/)
