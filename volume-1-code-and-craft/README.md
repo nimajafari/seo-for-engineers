@@ -29,3 +29,4 @@ sitemaps, robots.txt, and crawl budget shape what can be indexed.
 ### Part 3, Backend SEO Engineering
 
 - [Chapter 12, URL Design as an Engineering Discipline](chapter-12-url-design/)
+- [Chapter 13, HTTP Fundamentals for SEO](chapter-13-http-fundamentals/)
