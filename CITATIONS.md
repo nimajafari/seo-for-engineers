@@ -573,6 +573,7 @@ Google guidance on HTTP responses and redirects.
 
 - *HTTPS issues in Search Console.* Google Search Console Help.
   https://support.google.com/webmasters/answer/6073543
+  
 - *Secure your site with HTTPS.* Google Search Central.
   https://developers.google.com/search/docs/advanced/security/https
   Both cited for: Google's framing of certificate validity failures
@@ -711,3 +712,83 @@ Diagnostic tooling.
   Cited for: the standard external diagnostic for chain
   completeness, certificate configuration, and TLS handshake
   details, including the explicit "Chain issues" flag.
+
+### Chapter 14, Sitemaps as a Backend Responsibility
+
+Sitemap protocol and specifications.
+
+- *Sitemaps XML format.* Sitemaps.org.
+  https://www.sitemaps.org/protocol.html
+  Cited for: the canonical protocol specification, the `<urlset>` and
+  `<sitemapindex>` schemas, the 50,000-URL and 50 MB size limits, and
+  the W3C datetime requirement for `<lastmod>`.
+
+- *RFC 3339, Date and Time on the Internet, Timestamps.* IETF.
+  https://datatracker.ietf.org/doc/html/rfc3339
+  Cited for: the ISO 8601 subset that the sitemap protocol uses for
+  `<lastmod>` and related datetime fields.
+
+Google's sitemap documentation.
+
+- *Sitemaps, overview.* Google Search Central.
+  https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview
+  Cited for: Google's framing of sitemaps as a discovery aid, the
+  explicit statement that submission does not guarantee crawling or
+  indexing, and the criteria for which site profiles benefit most from
+  sitemaps.
+
+- *Build and submit a sitemap.* Google Search Central.
+  https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap
+  Cited for: the direct statement that *"Google ignores `<priority>`
+  and `<changefreq>` values"* and uses `<lastmod>` only when
+  consistently and verifiably accurate, plus the definition of
+  "significant update" as a change to the main content, structured
+  data, or links (and not, for example, the copyright date).
+
+- *Sitemaps, lastmod and ping.* Google Search Central blog (June 2023).
+  https://developers.google.com/search/blog/2023/06/sitemaps-lastmod-ping
+  Cited for: the formal deprecation of the sitemap ping endpoint and
+  the corresponding reaffirmation of `<lastmod>` as the freshness
+  signal Google trusts when accurate.
+
+- *Create a news sitemap.* Google Search Central.
+  https://developers.google.com/search/docs/crawling-indexing/sitemaps/news-sitemap
+  Cited for: the two-day (48-hour) eligibility window for news
+  articles, the 1,000-URL per-file cap, the required `<news:news>`
+  schema, and the `<news:publication_date>` format requirements.
+
+- *Video sitemaps.* Google Search Central.
+  https://developers.google.com/search/docs/crawling-indexing/sitemaps/video-sitemaps
+  Cited for: the `<video:video>` extension schema, the distinction
+  between `<video:content_loc>` and `<video:player_loc>`, and the
+  metadata fields Google uses to surface videos in search.
+
+- *Image sitemaps.* Google Search Central.
+  https://developers.google.com/search/docs/crawling-indexing/sitemaps/image-sitemaps
+  Cited for: the `<image:image>` extension schema, and the current
+  guidance that well-marked-up images in crawlable pages typically do
+  not require a separate image sitemap.
+
+- *Search Console API, Sitemaps resource.* Google Search Central.
+  https://developers.google.com/webmaster-tools/v1/sitemaps
+  Cited for: the API endpoints for `sitemaps.submit`, `sitemaps.get`,
+  and `sitemaps.list`, and the response fields used in the monitoring
+  example (`lastSubmitted`, `lastDownloaded`, `warnings`, `errors`,
+  `contents`).
+
+- *Indexing API quickstart.* Google Search Central.
+  https://developers.google.com/search/apis/indexing-api/v3/quickstart
+  Cited for: the restriction of the Indexing API to job posting and
+  live-streaming video content types, which is the basis of the
+  chapter's argument that the Indexing API is not a general-purpose
+  sitemap replacement.
+
+Engineering tooling referenced in the chapter.
+
+- *lxml, the etree.xmlfile incremental writer.* lxml documentation.
+  https://lxml.de/api.html#incremental-xml-generation
+  Cited for: the streaming XML writer used in the Python sitemap
+  worker example, which is the canonical pattern for generating
+  sitemaps over the 50,000-URL limit without loading the full URL set
+  into memory.
+
