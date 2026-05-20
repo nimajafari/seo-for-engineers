@@ -98,7 +98,12 @@ def parse_sitemap_urls(source: str, depth: int = 0) -> list[str]:
         return []
     try:
         content = fetch_sitemap_content(source)
-        root = etree.fromstring(content)
+        # Hardened parser: no external entity resolution and no network
+        # entity loading, so a hostile sitemap cannot trigger XXE or
+        # SSRF via DOCTYPE/ENTITY declarations. Matches chapter 14's
+        # sitemap-auditor.
+        parser = etree.XMLParser(resolve_entities=False, no_network=True)
+        root = etree.fromstring(content, parser=parser)
     except Exception as exc:
         print(f"WARN: failed to load {source}, {exc}", file=sys.stderr)
         return []
@@ -478,7 +483,7 @@ def check_content_type(
     parsed = urlparse(url)
     path_lower = parsed.path.lower()
 
-    if path_lower.endswith(".xml") or path_lower.endswith("sitemap.xml"):
+    if path_lower.endswith(".xml"):
         if "xml" not in content_type:
             issues.append({
                 "severity": "warning",
@@ -532,7 +537,12 @@ def check_conditional_requests(
         })
         return issues
 
-    # Send a conditional request and check for 304.
+    # Send a conditional request and check for 304. Target the final
+    # (post-redirect) URL, not the original: the Last-Modified/ETag we
+    # are validating belong to the terminal response, and re-requesting
+    # a redirecting URL would just return the 3xx, producing a false
+    # conditional_request_not_honored finding.
+    final_url = response.url or url
     headers = {"User-Agent": USER_AGENT}
     if last_modified:
         headers["If-Modified-Since"] = last_modified
@@ -541,7 +551,7 @@ def check_conditional_requests(
 
     try:
         conditional_response = requests.get(
-            url,
+            final_url,
             timeout=REQUEST_TIMEOUT_SECONDS,
             headers=headers,
             allow_redirects=False,

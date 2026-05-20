@@ -44,9 +44,8 @@ from pathlib import Path
 from typing import Any
 
 from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import TLSFeature, TLSFeatureType
-from cryptography.x509.oid import ExtensionOID, NameOID
+from cryptography.x509.oid import ExtensionOID
 
 # CA/Browser Forum SC-081v3 maximum validity schedule (UTC dates).
 VALIDITY_SCHEDULE = [
@@ -135,7 +134,7 @@ def fetch_certificate_chain(
             current_block.append(line)
             pem = "\n".join(current_block).encode("ascii")
             try:
-                cert = x509.load_pem_x509_certificate(pem, default_backend())
+                cert = x509.load_pem_x509_certificate(pem)
                 certs.append(cert)
             except Exception:
                 pass
