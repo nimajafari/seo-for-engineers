@@ -11,12 +11,13 @@ for each tier, a facet-specific `robots.txt` check, and the
 BigQuery queries that verify in production whether the strategy is
 working.
 
-Five artifacts cover the chapter's full production stack. The
+Six artifacts cover the chapter's full production stack. The
 classifier, normalizer, and test suite are the production shipping
 core. The `robots.txt` check and SQL queries are the diagnostic
-instrumentation that complements them. Each piece maps to a specific
-section of the chapter, so a reader can trace any artifact back to
-the prose that motivates it.
+instrumentation that complements them. `facet-filter.example.js` is
+the front-end reference for Strategy 3 (crawler-invisible filters).
+Each piece maps to a specific section of the chapter, so a reader can
+trace any artifact back to the prose that motivates it.
 
 ## Scripts
 
@@ -263,6 +264,39 @@ Chapter 16's
 before loading into BigQuery. The chapter's `user_agent LIKE`
 filter accepts spoofed user-agents and is therefore an upper bound
 on real Googlebot traffic.
+
+### `facet-filter.example.js`
+
+The front-end reference for Strategy 3, the crawler-invisible filter
+pattern (the chapter's "JavaScript-Rendered Filters" and "History API
+Middle Ground" sections). Filter controls are `<button>` elements
+carrying `data-facet` / `data-value` attributes, never `<a href>`
+links. Googlebot follows links and reads XHR responses it observes
+during rendering, but it does not click buttons, so it never
+discovers the filtered URL as a crawlable link, while real users
+still get a shareable, bookmarkable URL via `history.pushState` and a
+working back button via the `popstate` handler.
+
+The module exposes:
+
+- `applyFilter(facet, value)`, which sets the facet on the current
+  URL, records a history entry, and triggers a re-render.
+- `initFacetFilters({ controlsSelector })`, which wires up click
+  delegation on the controls container and a `popstate` listener for
+  back/forward navigation. Call once on page load.
+- `fetchAndRenderFilteredResults(searchParams)`, the
+  application-specific data boundary. Replace its body with your own
+  JSON endpoint and rendering, with one rule: it must not emit
+  `<a href>` links to filtered URLs, or the crawler-invisibility
+  property is lost.
+
+This is the strategy's chief operational risk, called out in the
+chapter's *Asymmetry Risk* section: the set of crawlable URLs is a
+product-level constraint owned by engineering. If a later feature
+renders the filter state into a link, a sitemap entry, or an
+`ItemList`, the URLs become crawlable again and the strategy fails
+silently. Use Chapter 18's log analysis to confirm Googlebot is not
+crawling URLs you believe are invisible.
 
 ## Wiring into CI
 
