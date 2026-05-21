@@ -28,6 +28,16 @@ All four scripts share the same assertion-suite format
 (`tests/robots-tests.yaml`), so adding a new must-be-crawlable or
 must-be-blocked URL only requires editing one file.
 
+Two further reference artifacts cover the *generation and serving*
+side, which the four scripts above only verify:
+
+5. **`serve-robots-nginx.conf`** — a host-based nginx `map` that ties
+   the served `robots.txt` body to the request host, making it
+   structurally impossible to serve staging's rules on production.
+6. **`robots.txt.j2`** — a defensive Jinja template that fails the
+   build loudly on an unrecognized environment rather than falling
+   through to `Disallow: /`.
+
 ## Choosing between parsers
 
 For most teams, `robots-ci-check.py` plus
@@ -295,6 +305,57 @@ catch-all `Disallow: /` that ships from staging.
 The Node.js script (`check-robots-nodejs.mjs`) is a substitute for
 `robots-ci-check.py` in Node-first environments. The two are not
 both needed.
+
+## Serving robots.txt safely
+
+The scripts above *verify* a `robots.txt`. They do not prevent the
+single most expensive failure mode in the chapter: a staging file
+(which blocks all crawlers) being served on the production host.
+The chapter's structural defense is to stop treating `robots.txt` as
+a static file that a build step copies from the wrong environment,
+and instead derive its content from the environment itself. These two
+reference artifacts implement that defense.
+
+### `serve-robots-nginx.conf`
+
+A host-based nginx `map` that selects the `robots.txt` body from the
+request host. The default branch is the restrictive
+`User-agent: * / Disallow: /` body, so any host not explicitly
+recognized as production (staging, preview, an unexpected internal
+hostname) is kept out of the index. The only way to serve a
+crawlable body on a host is to list that host explicitly, which makes
+shipping staging's rules to production a structural impossibility
+rather than a review-discipline problem.
+
+The `robots.txt` `location` returns the mapped body directly,
+bypassing application logic and static-file handlers so the endpoint
+stays boringly reliable (a `5xx` here makes Googlebot treat the whole
+origin as disallowed). nginx interprets the `\n` escapes in the
+mapped strings as real newlines, producing a valid multi-line file.
+
+Adapt the `map` block: add every production hostname (apex and `www`)
+that should be crawlable, and update the `Sitemap:` URL.
+
+### `robots.txt.j2`
+
+A Jinja template for teams that generate `robots.txt` at build or
+request time rather than serving it from nginx. It enumerates the
+known non-production environments explicitly and raises on anything
+unrecognized, so an unset or misspelled environment variable fails
+the build loudly instead of silently falling through to
+`Disallow: /`.
+
+`fail` is **not** a built-in Jinja2 function; register it as a global
+on the environment before rendering (the template's header comment
+shows the three-line setup). Render with the `environment` variable
+set, e.g. `render(environment="production")`.
+
+Both files are reference configuration, not runnable scripts, so they
+are not part of the `make` smoke-test target for this chapter. Their
+content should still flow through the verification scripts above: the
+body `serve-robots-nginx.conf` serves, or the file `robots.txt.j2`
+renders, is exactly what `robots-ci-check.py` and
+`robots-post-deploy-smoke.py` should be pointed at.
 
 ## Primary sources
 

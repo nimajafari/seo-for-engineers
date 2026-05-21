@@ -1,0 +1,43 @@
+{#-
+  robots.txt.j2
+
+  Environment-aware robots.txt template for Chapter 15 of
+  SEO for Engineers, Volume 1. Use this when robots.txt is generated
+  from a template at build or request time rather than served from a
+  host-based map (see serve-robots-nginx.conf for the latter).
+
+  The defensive point of this template is the final `{% else %}`
+  branch. A naive two-branch template (`production` vs everything
+  else) fails *open toward Disallow: /* whenever the environment
+  variable is unset, misspelled, or not populated on the CI agent.
+  This template instead enumerates the known non-production
+  environments explicitly and raises on anything unrecognized, so a
+  misconfiguration fails the build loudly instead of silently
+  shipping the wrong file.
+
+  NOTE: `fail` is NOT a built-in Jinja2 function. Vanilla Jinja2 has
+  no way to raise from a template. Register it as a global on the
+  environment before rendering, e.g.:
+
+      def _raise(message):
+          raise RuntimeError(message)
+
+      env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+      env.globals["fail"] = _raise
+
+  Render with the `environment` variable set, e.g.:
+
+      env.get_template("robots.txt.j2").render(environment="production")
+
+  Reference: SEO for Engineers, Volume 1, Chapter 15.
+-#}
+{% if environment == "production" %}
+User-agent: *
+Allow: /
+Sitemap: https://www.example.com/sitemap.xml
+{% elif environment in ["staging", "preview", "dev"] %}
+User-agent: *
+Disallow: /
+{% else %}
+{{ fail("robots.txt template rendered without a known environment: " + environment) }}
+{% endif %}
