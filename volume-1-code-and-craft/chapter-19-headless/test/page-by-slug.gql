@@ -1,0 +1,55 @@
+# page-by-slug.gql
+#
+# The "SEO data contract" query from Chapter 19. This is the single
+# request the rendering layer issues per page: it fetches everything
+# needed to emit SEO-correct output (status, timestamps, the seo
+# block, the body, and the locale alternates) in one round trip, so a
+# page's TTFB is bounded by one API call rather than several.
+#
+# It is also the query cms_contract_validator.py sends in --graphql
+# mode. The fields selected here line up with the validator's default
+# contract (slug, title, status, publishedAt, updatedAt, and the seo.*
+# fields), so a CMS that drifts (a renamed field, a type change, a
+# field that becomes nullable) is caught at this integration boundary
+# rather than in production.
+#
+# `status` is included specifically because the default contract
+# asserts it is one of published / draft / archived; the rendering
+# layer needs it to decide 200 vs 404.
+#
+# Reference: SEO for Engineers, Volume 1, Chapter 19.
+
+query PageBySlug($slug: String!, $locale: String!) {
+  page(where: { slug: { eq: $slug } }, locale: $locale) {
+    title
+    slug
+    status
+    publishedAt
+    updatedAt
+    seo {
+      metaTitle
+      metaDescription
+      canonicalOverride
+      noindex
+      ogImage {
+        url
+        width
+        height
+      }
+    }
+    body {
+      json
+      references {
+        __typename
+        ... on Asset {
+          url
+          alt
+        }
+      }
+    }
+    alternateLocales {
+      locale
+      slug
+    }
+  }
+}

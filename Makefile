@@ -195,7 +195,7 @@ else
 	  $(PYTHON) cms_contract_validator.py \
 	    --graphql $$CMS_GRAPHQL_URL \
 	    --query @test/page-by-slug.gql \
-	    --variables '{"slug":"smoke-test"}'
+	    --variables '{"slug":"smoke-test","locale":"en"}'
 endif
 
 .PHONY: test-live-staging

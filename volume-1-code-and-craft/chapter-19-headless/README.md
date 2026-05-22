@@ -215,6 +215,28 @@ The contract is itself a Python data structure or a JSON file,
 making it easy to extend with your own custom fields, locale
 requirements, or product-specific constraints.
 
+### `test/page-by-slug.gql`
+
+The "SEO data contract" GraphQL query from the chapter, shipped as a
+fixture. It fetches every field the rendering layer needs for one
+page in a single round trip (status, timestamps, the `seo` block, the
+body, and locale alternates), and its selection set lines up with the
+validator's default contract, including `status`, which the contract
+requires but the chapter's inline query omits.
+
+This is the query `make test-live-cms` feeds to
+`cms_contract_validator.py` (gated on `CMS_GRAPHQL_URL`):
+
+```bash
+python cms_contract_validator.py \
+  --graphql "$CMS_GRAPHQL_URL" \
+  --query @test/page-by-slug.gql \
+  --variables '{"slug":"smoke-test","locale":"en"}'
+```
+
+The query declares `$slug` and `$locale` as required, so the
+`--variables` payload must supply both.
+
 ### `responsibility_matrix.md`
 
 The responsibility matrix from Chapter 19 section 19.3, as a
