@@ -15,6 +15,30 @@ run against any standard log table. Each piece maps to a specific
 section of the chapter, so a reader can trace any artifact back to
 the prose that motivates it.
 
+Upstream of all of them, the [`log-formats/`](log-formats/) configs
+ship the recommended server log formats that produce the logs
+`parse_logs.py` consumes, because none of this works if the logs
+aren't captured correctly in the first place.
+
+## Producing the logs (`log-formats/`)
+
+Before any analysis is possible, the server has to emit logs in a
+format that carries the fields SEO analysis needs. Section 18.2 of
+the chapter gives the configs; they ship here as reference snippets:
+
+- **`log-formats/nginx-seo.conf`** — two nginx `log_format` blocks.
+  `seo_json` is the recommended one (the chapter's guidance is to
+  emit JSON if you are configuring logging today); its keys are
+  exactly what `parse_logs.py`'s JSON reader expects. `seo_combined`
+  is the legacy Combined-style fallback. Both add `$request_time`
+  and `$upstream_response_time` (slow responses to Googlebot reduce
+  crawl budget) and use the ISO 8601 `$time_iso8601` timestamp.
+- **`log-formats/apache-seo.conf`** — the Apache `LogFormat`
+  equivalent, parsed by `parse_logs.py`'s NCSA Combined reader.
+
+These close the loop: the output of these configs is exactly what
+`parse_logs.py` reads and normalizes for the rest of the pipeline.
+
 ## Scripts
 
 ### `parse_logs.py`
