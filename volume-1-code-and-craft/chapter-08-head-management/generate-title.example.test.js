@@ -70,4 +70,35 @@ describe('generateTitle', () => {
     const title = generateTitle({ type: 'whatever' }, SITE);
     assert.equal(title, SITE.brand);
   });
+
+  it('never interpolates "undefined" when required fields are missing', () => {
+    const incomplete = [
+      { type: 'product' }, // no productName / category
+      { type: 'product', productName: 'Sample' }, // no category
+      { type: 'category' }, // no categoryName
+      { type: 'article' }, // no headline
+    ];
+    for (const page of incomplete) {
+      const title = generateTitle(page, SITE);
+      assert.ok(
+        title.trim().length > 0,
+        `empty title for ${JSON.stringify(page)}`,
+      );
+      assert.doesNotMatch(
+        title,
+        /undefined/,
+        `"undefined" leaked into title for ${JSON.stringify(page)}: "${title}"`,
+      );
+    }
+  });
+
+  it('recovers via h1 when a typed branch is missing its fields', () => {
+    // A product page missing its structured fields but carrying an h1
+    // should brand the h1 rather than emit "undefined, undefined | ...".
+    const title = generateTitle(
+      { type: 'product', h1: 'Merrell Moab 3 GTX' },
+      SITE,
+    );
+    assert.equal(title, `Merrell Moab 3 GTX | ${SITE.brand}`);
+  });
 });

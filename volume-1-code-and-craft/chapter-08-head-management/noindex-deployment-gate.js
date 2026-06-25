@@ -57,9 +57,15 @@ function parseArgs(argv) {
   return args;
 }
 
+// Matches a `noindex` or `none` directive as a whole token. `none` is
+// documented by Google as equivalent to `noindex, nofollow`, so a page
+// shipping content="none" must trip the same gate as content="noindex".
+// The token boundaries avoid false positives inside unrelated values.
+const NOINDEX_DIRECTIVE = /(^|[\s,;:])(noindex|none)([\s,;]|$)/i;
+
 function hasNoindex(value) {
   if (!value) return false;
-  return value.toLowerCase().includes('noindex');
+  return NOINDEX_DIRECTIVE.test(value);
 }
 
 async function checkOne(url, requestContext, browser) {
@@ -94,7 +100,10 @@ async function checkOne(url, requestContext, browser) {
   const context = await browser.newContext();
   const page = await context.newPage();
   try {
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
+    // 'load' rather than 'networkidle': head tags are present at load,
+    // and networkidle never settles on pages with analytics beacons or
+    // long-polling, burning the full timeout for no added signal.
+    await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
     const data = await page.evaluate(() => {
       const get = (selector) =>
         document.querySelector(selector)?.getAttribute('content') ?? null;

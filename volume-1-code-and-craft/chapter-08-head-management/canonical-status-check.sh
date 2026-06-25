@@ -67,15 +67,18 @@ else
     HAS_GREP_PCRE=0
 fi
 
-extract_canonical() {
+# Emit every canonical href found, one per line, so the caller can both
+# take the first and detect duplicates (multiple canonicals are a
+# high-severity signal: Google typically ignores all of them).
+extract_canonicals() {
     if [ "$HAS_GREP_PCRE" -eq 1 ]; then
         # GNU grep with PCRE. Linux, GitHub Actions Ubuntu runners,
         # most CI environments.
-        grep -oiP '<link\s+rel="canonical"\s+href="\K[^"]+' | head -n1
+        grep -oiP '<link\s+rel="canonical"\s+href="\K[^"]+'
     else
         # BSD grep on macOS does not implement -P. Fall back to perl,
         # which is POSIX-portable.
-        perl -ne 'if (/<link\s+rel="canonical"\s+href="([^"]+)"/i) { print "$1\n"; last; }'
+        perl -ne 'while (/<link\s+rel="canonical"\s+href="([^"]+)"/ig) { print "$1\n"; }'
     fi
 }
 
@@ -101,12 +104,21 @@ while IFS= read -r url || [ -n "$url" ]; do
         continue
     fi
 
-    canonical=$(printf '%s' "$html" | extract_canonical || true)
-    if [ -z "$canonical" ]; then
+    canonicals=$(printf '%s' "$html" | extract_canonicals || true)
+    if [ -z "$canonicals" ]; then
         echo "FAIL: $url has no <link rel=\"canonical\"> tag"
         failures=$((failures + 1))
         continue
     fi
+
+    canonical_count=$(printf '%s\n' "$canonicals" | grep -c . || true)
+    if [ "$canonical_count" -gt 1 ]; then
+        echo "FAIL: $url has $canonical_count canonical tags (Google ignores all of them)"
+        failures=$((failures + 1))
+        continue
+    fi
+
+    canonical=$(printf '%s\n' "$canonicals" | head -n1)
 
     status=$(curl -sSL -A "$USER_AGENT" -o /dev/null \
         -w "%{http_code}" "$canonical" || echo "000")

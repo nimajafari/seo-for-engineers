@@ -40,9 +40,21 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
+// Cap the rendered title so an over-long value can't overflow the card
+// or blow out the layout. ~120 chars is comfortably more than the two
+// lines the template shows; anything longer is truncated with an ellipsis.
+const MAX_TITLE_LENGTH = 120;
+
+function clampTitle(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > MAX_TITLE_LENGTH
+    ? `${trimmed.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
+    : trimmed;
+}
+
 export async function GET(request: Request): Promise<ImageResponse> {
   const { searchParams } = new URL(request.url);
-  const title = searchParams.get('title') ?? 'Default Title';
+  const title = clampTitle(searchParams.get('title') ?? 'Default Title');
   const author = searchParams.get('author') ?? '';
 
   return new ImageResponse(
@@ -78,6 +90,16 @@ export async function GET(request: Request): Promise<ImageResponse> {
         </div>
       </div>
     ),
-    { width: 1200, height: 630 },
+    {
+      width: 1200,
+      height: 630,
+      headers: {
+        // Social scrapers refetch the card image repeatedly. A long
+        // immutable cache means the Edge function renders each unique
+        // title once, not on every scrape. Bump the URL (or a version
+        // query param) when the template itself changes.
+        'Cache-Control': 'public, immutable, no-transform, max-age=31536000',
+      },
+    },
   );
 }

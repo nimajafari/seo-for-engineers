@@ -21,6 +21,14 @@ Usage:
     python head-audit.py --urls-file urls.txt
     python head-audit.py --sitemap https://example.com/sitemap.xml --limit 50
     python head-audit.py --url https://example.com/ --check-canonical-status
+    python head-audit.py --url https://example.com/account --expect-noindex
+
+URLs flagged as intentionally non-indexable do not raise a noindex
+finding. Pass --expect-noindex with --url, or append a 'noindex' token
+to a urls-file line:
+
+    https://example.com/account/settings    noindex
+    https://example.com/search               noindex
 
 Install:
     pip install -r requirements.txt
@@ -140,7 +148,14 @@ def parse_sitemap(sitemap_url: str, limit: int | None = None) -> list[str]:
         headers={"User-Agent": USER_AGENT},
     )
     response.raise_for_status()
-    root = etree.fromstring(response.content)
+
+    # Sitemaps come from arbitrary, possibly untrusted URLs. Disable
+    # entity resolution and network access so a hostile sitemap cannot
+    # mount an XXE or billion-laughs entity-expansion attack.
+    parser = etree.XMLParser(
+        resolve_entities=False, no_network=True, dtd_validation=False
+    )
+    root = etree.fromstring(response.content, parser=parser)
 
     ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 
@@ -175,11 +190,15 @@ def get_head_data(soup: BeautifulSoup) -> dict[str, Any]:
 
     titles = soup.find_all("title")
     canonical_tags = soup.find_all("link", attrs={"rel": "canonical"})
+    description_tags = soup.find_all("meta", attrs={"name": "description"})
+    charset_tag = soup.find("meta", charset=True)
 
     return {
         "title_count": len(titles),
         "title": titles[0].get_text().strip() if titles else None,
         "description": meta_content("description"),
+        "description_count": len(description_tags),
+        "charset": charset_tag.get("charset") if charset_tag else None,
         "robots": meta_content("robots"),
         "googlebot": meta_content("googlebot"),
         "viewport": meta_content("viewport"),
@@ -313,10 +332,16 @@ def check_canonical(
             )
 
 
+# Matches a `noindex` or `none` directive as a whole token. Google
+# documents content="none" as equivalent to "noindex, nofollow", so it
+# must be detected wherever a literal "noindex" would be.
+_NOINDEX_DIRECTIVE = re.compile(r"(^|[\s,;:])(noindex|none)([\s,;]|$)", re.IGNORECASE)
+
+
 def has_noindex(value: str | None) -> bool:
     if not value:
         return False
-    return "noindex" in value.lower()
+    return bool(_NOINDEX_DIRECTIVE.search(value))
 
 
 def check_robots(
@@ -391,6 +416,41 @@ def check_description(head: dict[str, Any], report: PageReport) -> None:
                 rule="missing_description",
                 message="Page has no <meta name=\"description\">. Google may "
                 "generate a snippet from page content, which may be less compelling than a written description.",
+            )
+        )
+        return
+
+    if head.get("description_count", 0) > 1:
+        report.findings.append(
+            Finding(
+                severity="medium",
+                rule="multiple_descriptions",
+                message=f"Page has {head['description_count']} <meta name=\"description\"> tags. "
+                "Google picks one unpredictably; emit exactly one.",
+            )
+        )
+
+
+def check_charset(head: dict[str, Any], report: PageReport) -> None:
+    charset = head.get("charset")
+    if not charset:
+        report.findings.append(
+            Finding(
+                severity="low",
+                rule="missing_charset",
+                message="Page has no <meta charset>. Browsers fall back to "
+                "heuristics or the HTTP header, which can mangle non-ASCII text.",
+            )
+        )
+        return
+
+    if charset.strip().lower() != "utf-8":
+        report.findings.append(
+            Finding(
+                severity="low",
+                rule="non_utf8_charset",
+                message=f"Declared charset is '{charset}', not utf-8.",
+                detail=charset,
             )
         )
 
@@ -480,6 +540,7 @@ def audit(
     check_description(head, report)
     check_open_graph(head, report)
     check_viewport(head, report)
+    check_charset(head, report)
 
     return report
 
@@ -509,29 +570,46 @@ def main() -> int:
         "Slow on large URL sets.",
     )
     parser.add_argument(
+        "--expect-noindex",
+        action="store_true",
+        help="For --url, mark the URL as intentionally non-indexable, so a "
+        "noindex directive is expected rather than flagged. In a --urls-file, "
+        "append a whitespace-separated 'noindex' token to a line for the same "
+        "effect per URL.",
+    )
+    parser.add_argument(
         "--output",
         help="Optional path to write JSON output to. Defaults to stdout.",
     )
     args = parser.parse_args()
 
+    # Each target is (url, should_index). should_index=False means the
+    # URL is expected to be noindex, so a noindex directive is correct
+    # rather than a finding.
+    targets: list[tuple[str, bool]] = []
     if args.url:
-        urls = [args.url]
+        targets = [(args.url, not args.expect_noindex)]
     elif args.urls_file:
-        urls = [
-            line.strip()
-            for line in Path(args.urls_file).read_text().splitlines()
-            if line.strip() and not line.startswith("#")
-        ]
+        for line in Path(args.urls_file).read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # Optional second whitespace-separated token: 'noindex' marks
+            # the URL as intentionally non-indexable.
+            parts = line.split(None, 1)
+            url = parts[0]
+            should_index = not (len(parts) == 2 and parts[1].strip().lower() == "noindex")
+            targets.append((url, should_index))
         if args.limit:
-            urls = urls[: args.limit]
+            targets = targets[: args.limit]
     else:
-        urls = parse_sitemap(args.sitemap, limit=args.limit)
+        targets = [(url, True) for url in parse_sitemap(args.sitemap, limit=args.limit)]
 
     reports = []
-    for url in urls:
+    for url, should_index in targets:
         report = audit(
             url,
-            should_index=True,
+            should_index=should_index,
             check_canonical_status=args.check_canonical_status,
         )
         reports.append(report)

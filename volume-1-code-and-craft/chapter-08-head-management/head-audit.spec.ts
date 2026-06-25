@@ -40,6 +40,15 @@ type AuditEntry = {
   expectedCanonicalOrigin?: string;
 };
 
+// `none` is documented by Google as equivalent to `noindex, nofollow`,
+// so it must trip the same indexation check. Token boundaries keep the
+// match from firing inside unrelated directive values.
+const NOINDEX_DIRECTIVE = /(^|[\s,;:])(noindex|none)([\s,;]|$)/i;
+
+function hasNoindex(value: string): boolean {
+  return NOINDEX_DIRECTIVE.test(value);
+}
+
 const PAGES_TO_AUDIT: AuditEntry[] = [
   { url: 'https://staging.example.com/',                  type: 'home',    shouldIndex: true  },
   { url: 'https://staging.example.com/products/sample',   type: 'product', shouldIndex: true  },
@@ -57,7 +66,10 @@ for (const entry of PAGES_TO_AUDIT) {
     let xRobotsTag = '';
 
     test.beforeEach(async ({ page }) => {
-      const response = await page.goto(url, { waitUntil: 'networkidle' });
+      // 'load' rather than 'networkidle': <head> tags are present at
+      // load, and networkidle never settles on pages with analytics
+      // beacons or long-polling, wasting the timeout for no added signal.
+      const response = await page.goto(url, { waitUntil: 'load' });
       xRobotsTag = response?.headers()['x-robots-tag'] ?? '';
     });
 
@@ -123,9 +135,7 @@ for (const entry of PAGES_TO_AUDIT) {
         (await robotsMeta.count()) > 0 ? (await robotsMeta.first().getAttribute('content')) ?? '' : '';
 
       // Combine both signals so a noindex set at either layer is detected.
-      const headerNoindex = xRobotsTag.toLowerCase().includes('noindex');
-      const metaNoindex = metaContent.toLowerCase().includes('noindex');
-      const isNoindex = headerNoindex || metaNoindex;
+      const isNoindex = hasNoindex(xRobotsTag) || hasNoindex(metaContent);
 
       if (shouldIndex) {
         expect(
