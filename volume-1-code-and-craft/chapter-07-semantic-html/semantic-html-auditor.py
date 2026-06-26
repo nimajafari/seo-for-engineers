@@ -10,9 +10,11 @@ The audit reports findings in three severity buckets. High severity
 findings include missing or duplicated h1, missing or duplicated main,
 anchor elements without href, and anchor elements that produce no
 text signal at all. Medium severity findings include skipped heading
-levels, missing alt attributes on images, and generic template-level
-alt text. Low severity findings include missing landmark elements and
-headings inside aside.
+levels, anchors whose href has no crawlable destination (empty, bare
+"#", or javascript:), missing alt attributes on images, and generic
+template-level alt text. Low severity findings include a missing
+<html lang> attribute, missing landmark elements, and headings inside
+aside.
 
 The script does not try to be a full WCAG audit. It focuses on the
 patterns Chapter 7 identifies as having the highest SEO impact, and
@@ -311,6 +313,22 @@ def check_landmarks(soup: BeautifulSoup, report: AuditReport) -> None:
         )
 
 
+def check_lang(soup: BeautifulSoup, report: AuditReport) -> None:
+    """Check that the root <html> declares a language."""
+    html_tag = soup.find("html")
+    lang = (html_tag.get("lang") if html_tag else None) or ""
+    if not lang.strip():
+        report.findings.append(
+            Finding(
+                severity="low",
+                rule="missing_html_lang",
+                message="<html> has no lang attribute. Search engines and "
+                "assistive technology rely on it to identify the page "
+                "language, and it underpins hreflang targeting.",
+            )
+        )
+
+
 def check_anchors(soup: BeautifulSoup, report: AuditReport) -> None:
     """Check anchor elements for href and accessible name."""
     for a in soup.find_all("a"):
@@ -328,7 +346,30 @@ def check_anchors(soup: BeautifulSoup, report: AuditReport) -> None:
             )
             continue
 
-        if href is not None and not has_accessible_name(a):
+        if href is None:
+            continue
+
+        # Hrefs that carry no crawlable destination: empty, a bare
+        # fragment, or a javascript: URL. These render as links but pass
+        # no link equity and give crawlers no target to follow.
+        href_value = href.strip()
+        if (
+            href_value == ""
+            or href_value == "#"
+            or href_value.lower().startswith("javascript:")
+        ):
+            report.findings.append(
+                Finding(
+                    severity="medium",
+                    rule="anchor_non_crawlable_href",
+                    message=f'<a> href="{href}" has no crawlable destination '
+                    "(empty, bare '#', or javascript:). Use a real URL, or a "
+                    "<button> if this triggers an action rather than navigation.",
+                    element_excerpt=excerpt(a),
+                )
+            )
+
+        if not has_accessible_name(a):
             report.findings.append(
                 Finding(
                     severity="high",
@@ -401,6 +442,7 @@ def audit(url: str) -> AuditReport:
 
     soup = BeautifulSoup(body, "html.parser")
 
+    check_lang(soup, report)
     check_headings(soup, report)
     check_landmarks(soup, report)
     check_anchors(soup, report)
@@ -430,7 +472,7 @@ def main() -> int:
         urls = [
             line.strip()
             for line in Path(args.urls_file).read_text().splitlines()
-            if line.strip() and not line.startswith("#")
+            if line.strip() and not line.strip().startswith("#")
         ]
 
     reports = [audit(u) for u in urls]

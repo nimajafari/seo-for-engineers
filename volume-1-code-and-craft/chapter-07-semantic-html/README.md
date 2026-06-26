@@ -21,14 +21,16 @@ signal at all (no text, no `aria-label`, no `alt` on child images, no
 visually hidden text).
 
 **Medium severity.** Skipped heading levels (h2 followed by h4
-without an intervening h3), images with no `alt` attribute, images
-with generic template-level alt text (`Image`, `Photo`, `Picture`,
-`Product Image`, and similar), `<button>` and `<a>` elements that
-render only an icon without an accessible name.
+without an intervening h3), anchors whose `href` has no crawlable
+destination (empty, a bare `#`, or a `javascript:` URL), images with
+no `alt` attribute, images with generic template-level alt text
+(`Image`, `Photo`, `Picture`, `Product Image`, and similar),
+`<button>` and `<a>` elements that render only an icon without an
+accessible name.
 
-**Low severity.** Missing `<header>`, missing `<footer>`, missing
-top-level `<nav>`, headings inside `<aside>` that may pollute the
-document outline.
+**Low severity.** Missing `<html lang>` attribute, missing `<header>`,
+missing `<footer>`, missing top-level `<nav>`, headings inside
+`<aside>` that may pollute the document outline.
 
 The script does not try to be a full WCAG audit. It focuses on the
 patterns Chapter 7 identifies as having the highest SEO impact.
@@ -64,6 +66,8 @@ Usage:
 node heading-hierarchy-validator.js https://example.com/
 Multiple URLs
 node heading-hierarchy-validator.js --urls https://example.com/ https://example.com/products/widget
+URLs from a file (one per line, # for comments)
+node heading-hierarchy-validator.js --urls-file urls.txt
 
 Install:
 
@@ -80,6 +84,10 @@ A small ES module that builds natural-language alt text for product
 images from structured data. Exports `generateProductAlt(product)`.
 Handles partial data without producing double spaces or trailing
 punctuation. Use as a scaffold for CMS alt-text generation pipelines.
+
+The documented invariants are locked in by
+`generate-product-alt.example.test.js` (run with `npm test`, which uses
+the built-in `node --test` runner and needs no extra dependency).
 
 ### `sr-only.example.css`
 

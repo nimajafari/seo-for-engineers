@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Semantic HTML diagnostic scripts for Chapter 7 of SEO for Engineers, Volume 1.",
   "scripts": {
-    "validate:headings": "node heading-hierarchy-validator.js"
+    "validate:headings": "node heading-hierarchy-validator.js",
+    "test": "node --test"
   },
   "dependencies": {
     "playwright": "^1.45.0"

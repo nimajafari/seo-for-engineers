@@ -18,14 +18,16 @@
 // Usage:
 //   node heading-hierarchy-validator.js https://example.com/
 //   node heading-hierarchy-validator.js --urls https://example.com/ https://example.com/products
+//   node heading-hierarchy-validator.js --urls-file urls.txt
 //
 // Reference: SEO for Engineers, Volume 1, Chapter 7.
 
 import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
 import process from 'node:process';
 
 function parseArgs(argv) {
-  const args = { urls: [] };
+  const args = { urls: [], urlsFile: null };
   const tokens = argv.slice(2);
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -33,31 +35,47 @@ function parseArgs(argv) {
       while (i + 1 < tokens.length && !tokens[i + 1].startsWith('--')) {
         args.urls.push(tokens[++i]);
       }
+    } else if (t === '--urls-file') {
+      args.urlsFile = tokens[++i];
     } else if (t.startsWith('http')) {
       args.urls.push(t);
+    }
+  }
+  if (args.urlsFile) {
+    const lines = readFileSync(args.urlsFile, 'utf-8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        args.urls.push(trimmed);
+      }
     }
   }
   return args;
 }
 
-async function validateOne(url) {
+async function validateOne(url, browser) {
   const result = {
     url,
     headings: [],
     findings: [],
   };
 
-  const browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
+    // 'load' rather than 'networkidle': the heading outline is present
+    // at load, and networkidle never settles on pages with analytics
+    // beacons or long-polling, burning the timeout for no added signal.
+    await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
 
     const data = await page.evaluate(() => {
+      // Keep this list in sync with UI_COMPONENT_INDICATORS in
+      // semantic-html-auditor.py so the two tools agree on what a
+      // UI-component ancestor looks like.
       const UI_COMPONENT_INDICATORS = [
         'card', 'modal', 'dialog', 'popover', 'tooltip', 'dropdown',
-        'menu', 'sidebar', 'widget', 'tile',
+        'menu', 'sidebar', 'widget', 'banner', 'tile',
       ];
       const UI_ROLES = new Set([
         'dialog', 'alertdialog', 'menu', 'menuitem', 'tooltip',
@@ -198,7 +216,7 @@ async function validateOne(url) {
       message: err.message,
     });
   } finally {
-    await browser.close();
+    await context.close();
   }
 
   result.counts = {
@@ -219,16 +237,24 @@ async function main() {
     process.exit(2);
   }
 
+  // Launch the browser once and reuse it across URLs. A fresh context
+  // per URL keeps state isolated without paying the browser launch cost
+  // on every page.
+  const browser = await chromium.launch();
   const results = [];
-  for (const url of args.urls) {
-    const result = await validateOne(url);
-    results.push(result);
+  try {
+    for (const url of args.urls) {
+      const result = await validateOne(url, browser);
+      results.push(result);
 
-    const status = result.counts.high === 0 ? 'OK' : 'BLOCKED';
-    console.error(
-      `${status}\t${result.url}\t` +
-        `h=${result.counts.high} m=${result.counts.medium} l=${result.counts.low}`
-    );
+      const status = result.counts.high === 0 ? 'OK' : 'BLOCKED';
+      console.error(
+        `${status}\t${result.url}\t` +
+          `h=${result.counts.high} m=${result.counts.medium} l=${result.counts.low}`
+      );
+    }
+  } finally {
+    await browser.close();
   }
 
   console.log(
