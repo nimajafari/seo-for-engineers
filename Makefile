@@ -11,7 +11,7 @@
 #
 # Requirements:
 #   - Python 3.11+ with venv module
-#   - Node 20+ with npx (only for TypeScript-bearing chapters)
+#   - Node 20+ with npx (TypeScript and JavaScript chapters)
 #   - DuckDB CLI (only for chapter 18)
 
 # Run `make help` for a list of available targets.
@@ -46,10 +46,18 @@ PY_CHAPTERS := \
 TS_CHAPTERS := \
   chapter-19-headless
 
+# Chapters with Node (node:test) unit tests. These suites import only
+# node:test/node:assert and a sibling module, so they run with no
+# install step.
+JS_CHAPTERS := \
+  chapter-07-semantic-html \
+  chapter-08-head-management
+
 # Chapters with shell-script smoke tests.
 SH_CHAPTERS := \
   chapter-01-crawling \
   chapter-02-rendering \
+  chapter-08-head-management \
   chapter-15-robots-txt
 
 .DEFAULT_GOAL := help
@@ -67,6 +75,7 @@ help:
 	@echo "  make test CHAPTER=XX    Run a single chapter's tests"
 	@echo "  make test-python        Run only Python-based chapter tests"
 	@echo "  make test-typescript    Run only TypeScript-based chapter tests"
+	@echo "  make test-javascript    Run only Node (node:test) chapter tests"
 	@echo "  make lint               Run lint and format checks"
 	@echo "  make clean              Remove caches and venvs"
 	@echo ""
@@ -84,7 +93,7 @@ help:
 # ----------------------------------------------------------------
 
 .PHONY: test-all
-test-all: test-python test-typescript test-shell
+test-all: test-python test-typescript test-javascript test-shell
 	@echo ""
 	@echo "================================================================"
 	@echo "  ALL CHAPTER TESTS PASSED"
@@ -102,6 +111,9 @@ test-python: $(addprefix test-,$(PY_CHAPTERS))
 
 .PHONY: test-typescript
 test-typescript: $(addprefix test-ts-,$(TS_CHAPTERS))
+
+.PHONY: test-javascript
+test-javascript: $(addprefix test-js-,$(JS_CHAPTERS))
 
 .PHONY: test-shell
 test-shell: $(addprefix test-sh-,$(SH_CHAPTERS))
@@ -159,6 +171,29 @@ test-ts-$(1):
 endef
 
 $(foreach chapter,$(TS_CHAPTERS),$(eval $(call TS_CHAPTER_RULES,$(chapter))))
+
+# ----------------------------------------------------------------
+# Per-chapter JavaScript (node:test) targets
+# ----------------------------------------------------------------
+
+define JS_CHAPTER_RULES
+.PHONY: test-js-$(1)
+test-js-$(1):
+	@echo ""
+	@echo "================================================================"
+	@echo "  $(1) (JavaScript)"
+	@echo "================================================================"
+	@cd $(VOL1)/$(1) && \
+	  if ! command -v node >/dev/null 2>&1; then \
+	    echo "  node not installed; skipping JavaScript tests"; \
+	  elif ls *.test.js >/dev/null 2>&1; then \
+	    node --test; \
+	  else \
+	    echo "  (no node:test files)"; \
+	  fi
+endef
+
+$(foreach chapter,$(JS_CHAPTERS),$(eval $(call JS_CHAPTER_RULES,$(chapter))))
 
 # ----------------------------------------------------------------
 # Per-chapter shell-script targets
