@@ -46,10 +46,13 @@ PY_CHAPTERS := \
 TS_CHAPTERS := \
   chapter-19-headless
 
-# Chapters with Node (node:test) unit tests. These suites import only
-# node:test/node:assert and a sibling module, so they run with no
-# install step.
+# Chapters with Node (node:test) unit tests and/or browser-side JS
+# modules. The rule node --check's every *.js (syntax smoke, no module
+# resolution) and runs node --test where suites exist; both work with no
+# install step, since the suites import only node:test/node:assert and a
+# sibling module.
 JS_CHAPTERS := \
+  chapter-06-core-web-vitals \
   chapter-07-semantic-html \
   chapter-08-head-management
 
@@ -185,11 +188,18 @@ test-js-$(1):
 	@echo "================================================================"
 	@cd $(VOL1)/$(1) && \
 	  if ! command -v node >/dev/null 2>&1; then \
-	    echo "  node not installed; skipping JavaScript tests"; \
-	  elif ls *.test.js >/dev/null 2>&1; then \
-	    node --test; \
+	    echo "  node not installed; skipping JavaScript checks"; \
 	  else \
-	    echo "  (no node:test files)"; \
+	    for f in *.js; do \
+	      [ -f "$$$$f" ] || continue; \
+	      node --check "$$$$f" && echo "  ✓ $$$$f parses" \
+	        || (echo "  ✗ $$$$f failed to parse" && exit 1); \
+	    done; \
+	    if ls *.test.js >/dev/null 2>&1; then \
+	      node --test; \
+	    else \
+	      echo "  (no node:test files)"; \
+	    fi; \
 	  fi
 endef
 
