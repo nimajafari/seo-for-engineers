@@ -6,7 +6,8 @@
   "description": "Core Web Vitals diagnostic scripts and RUM collector for Chapter 6 of SEO for Engineers, Volume 1.",
   "scripts": {
     "diagnose:lcp": "node lcp-diagnostic.js",
-    "check:bfcache": "node bfcache-eligibility-check.js"
+    "check:bfcache": "node bfcache-eligibility-check.js",
+    "test": "node --test"
   },
   "dependencies": {
     "playwright": "^1.45.0",

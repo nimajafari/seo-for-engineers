@@ -16,14 +16,16 @@
 // Usage:
 //   node bfcache-eligibility-check.js https://example.com/
 //   node bfcache-eligibility-check.js --urls https://example.com/ https://example.com/products
+//   node bfcache-eligibility-check.js --urls-file urls.txt
 //
 // Reference: SEO for Engineers, Volume 1, Chapter 6.
 
 import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
 import process from 'node:process';
 
 function parseArgs(argv) {
-  const args = { urls: [] };
+  const args = { urls: [], urlsFile: null };
   const tokens = argv.slice(2);
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -31,14 +33,25 @@ function parseArgs(argv) {
       while (i + 1 < tokens.length && !tokens[i + 1].startsWith('--')) {
         args.urls.push(tokens[++i]);
       }
+    } else if (t === '--urls-file') {
+      args.urlsFile = tokens[++i];
     } else if (t.startsWith('http')) {
       args.urls.push(t);
+    }
+  }
+  if (args.urlsFile) {
+    const lines = readFileSync(args.urlsFile, 'utf-8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        args.urls.push(trimmed);
+      }
     }
   }
   return args;
 }
 
-async function checkOne(url) {
+async function checkOne(url, browser) {
   const result = {
     url,
     cacheControl: null,
@@ -48,7 +61,6 @@ async function checkOne(url) {
     issues: [],
   };
 
-  const browser = await chromium.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
 
@@ -132,7 +144,7 @@ async function checkOne(url) {
       message: err.message,
     });
   } finally {
-    await browser.close();
+    await context.close();
   }
 
   result.eligible =
@@ -147,16 +159,23 @@ async function main() {
     process.exit(2);
   }
 
+  // Launch Chromium once and reuse it across URLs; each check runs in a
+  // fresh context so navigation history and bfcache state stay isolated.
+  const browser = await chromium.launch();
   const results = [];
-  for (const url of args.urls) {
-    const result = await checkOne(url);
-    results.push(result);
+  try {
+    for (const url of args.urls) {
+      const result = await checkOne(url, browser);
+      results.push(result);
 
-    const status = result.eligible ? 'OK' : 'BLOCKED';
-    console.error(
-      `${status}\t${result.url}\t` +
-        result.issues.map((i) => i.type).join(',')
-    );
+      const status = result.eligible ? 'OK' : 'BLOCKED';
+      console.error(
+        `${status}\t${result.url}\t` +
+          result.issues.map((i) => i.type).join(',')
+      );
+    }
+  } finally {
+    await browser.close();
   }
 
   console.log(JSON.stringify(results.length === 1 ? results[0] : results, null, 2));

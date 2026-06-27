@@ -53,6 +53,8 @@ Usage:
 node lcp-diagnostic.js https://example.com/
 Multiple URLs
 node lcp-diagnostic.js --urls https://example.com/ https://example.com/products/widget
+URLs from a file (one per line, # for comments)
+node lcp-diagnostic.js --urls-file urls.txt
 Mobile viewport
 node lcp-diagnostic.js --form-factor mobile https://example.com/
 
@@ -73,6 +75,8 @@ Usage:
 node bfcache-eligibility-check.js https://example.com/
 Multiple URLs, JSON output
 node bfcache-eligibility-check.js --urls https://example.com/ https://example.com/products/widget
+URLs from a file (one per line, # for comments)
+node bfcache-eligibility-check.js --urls-file urls.txt
 
 Output identifies whether bfcache restored the page, and if not, which
 of Chrome's `notRestoredReasons` were responsible.
@@ -87,6 +91,11 @@ interaction or after a fallback timeout, whichever fires first. The
 load-once guarantee prevents the multi-load bug that happens when a
 naive `{ once: true }`-only implementation receives two different
 events (e.g. click then scroll).
+
+The load-once invariant is locked in by
+`delayed-third-party-loader.example.test.js` (run with `npm test`, which
+uses the built-in `node --test` runner with stubbed browser globals and
+needs no extra dependency).
 
 ### `lighthouse-ci.github-actions.yml`
 

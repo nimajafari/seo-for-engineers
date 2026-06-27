@@ -9,6 +9,7 @@
 // Usage:
 //   node lcp-diagnostic.js https://example.com/
 //   node lcp-diagnostic.js --urls https://example.com/ https://example.com/products
+//   node lcp-diagnostic.js --urls-file urls.txt
 //   node lcp-diagnostic.js --form-factor mobile https://example.com/
 //
 // The four-part values are approximations computed from
@@ -19,6 +20,7 @@
 // Reference: SEO for Engineers, Volume 1, Chapter 6.
 
 import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
 import process from 'node:process';
 
 const MOBILE_VIEWPORT = { width: 412, height: 915 };
@@ -29,7 +31,7 @@ const MOBILE_UA =
   '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
 
 function parseArgs(argv) {
-  const args = { urls: [], formFactor: 'desktop' };
+  const args = { urls: [], formFactor: 'desktop', urlsFile: null };
   const tokens = argv.slice(2);
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -39,8 +41,19 @@ function parseArgs(argv) {
       while (i + 1 < tokens.length && !tokens[i + 1].startsWith('--')) {
         args.urls.push(tokens[++i]);
       }
+    } else if (t === '--urls-file') {
+      args.urlsFile = tokens[++i];
     } else if (t.startsWith('http')) {
       args.urls.push(t);
+    }
+  }
+  if (args.urlsFile) {
+    const lines = readFileSync(args.urlsFile, 'utf-8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        args.urls.push(trimmed);
+      }
     }
   }
   return args;
@@ -52,8 +65,7 @@ function rate(lcpMs) {
   return 'poor';
 }
 
-async function diagnoseOne(url, formFactor) {
-  const browser = await chromium.launch();
+async function diagnoseOne(url, formFactor, browser) {
   const context = await browser.newContext({
     viewport: formFactor === 'mobile' ? MOBILE_VIEWPORT : DESKTOP_VIEWPORT,
     userAgent: formFactor === 'mobile' ? MOBILE_UA : undefined,
@@ -148,7 +160,7 @@ async function diagnoseOne(url, formFactor) {
   } catch (err) {
     return { url, error: err.message };
   } finally {
-    await browser.close();
+    await context.close();
   }
 }
 
@@ -159,10 +171,17 @@ async function main() {
     process.exit(2);
   }
 
+  // Launch Chromium once and reuse it across URLs; a fresh context per
+  // URL keeps timing state isolated without re-paying the launch cost.
+  const browser = await chromium.launch();
   const results = [];
-  for (const url of args.urls) {
-    const result = await diagnoseOne(url, args.formFactor);
-    results.push(result);
+  try {
+    for (const url of args.urls) {
+      const result = await diagnoseOne(url, args.formFactor, browser);
+      results.push(result);
+    }
+  } finally {
+    await browser.close();
   }
 
   console.log(JSON.stringify(results.length === 1 ? results[0] : results, null, 2));
