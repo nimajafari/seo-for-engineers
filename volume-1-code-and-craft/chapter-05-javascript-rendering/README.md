@@ -59,8 +59,9 @@ lhci autorun
 
 Validates a Speculation Rules JSON configuration against the risky
 patterns described in the chapter. It can either fetch the rules from
-a live URL (parsing the first `<script type="speculationrules">`
-element in the response) or read a local JSON file.
+a live URL (the browser unions every `<script type="speculationrules">`
+element on the page, so the validator parses and merges all of them)
+or read a local JSON file.
 
 It flags:
 
@@ -68,11 +69,15 @@ It flags:
   produces high origin load.
 - `eagerness: immediate` paired with selector matches, which is the
   default and rarely what you want for prerender at scale.
+- An invalid `eagerness` value (anything other than `immediate`,
+  `eager`, `moderate`, or `conservative`), which the browser ignores
+  outright so the speculation silently never runs.
 - Missing `eagerness`, which defaults to `immediate` for `urls` lists
   and may produce unintended speculative load.
 - Prerender rules pointing at URL patterns that look like one-time
-  action pages (`/checkout/`, `/confirm/`, `/unsubscribe/`, `/logout/`,
-  `/order/*/complete`, and similar). These should never be prerendered.
+  action pages (`/checkout/`, `/confirm/`, `/cart/`, `/add-to-cart`,
+  `/unsubscribe/`, `/logout/`, `/order/*/complete`, and similar,
+  including their `?query=` forms). These should never be prerendered.
 - Cross-origin URLs in rules without a corresponding
   `Supports-Loading-Mode: credentialed-prerender` consideration.
 
@@ -103,6 +108,11 @@ per page load: immediately for a normal navigation, or after the
 prerendered page is activated by the user. Drop it into your client
 bundle and use it to gate analytics, conversion pixels, and A/B
 variant assignment so speculative loads do not inflate metrics.
+
+The immediate-vs-deferred behavior is locked in by
+`prerender-aware-analytics.example.test.js` (run with `npm run test:unit`,
+which uses the built-in `node --test` runner with a stubbed `document`
+and needs no extra dependency; `npm test` runs the Playwright suite).
 
 ## Primary sources
 

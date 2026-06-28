@@ -43,29 +43,42 @@ import requests
 from bs4 import BeautifulSoup
 
 REQUEST_TIMEOUT_SECONDS = 20
+USER_AGENT = (
+    "Mozilla/5.0 (compatible; SeoForEngineersAuditor/1.0; "
+    "+https://github.com/nimajafari/seo-for-engineers)"
+)
+
+# The eagerness values defined by the Speculation Rules spec. Any other
+# value is invalid and causes the browser to ignore the rule.
+VALID_EAGERNESS = ("immediate", "eager", "moderate", "conservative")
 
 # Patterns that strongly suggest a URL performs an irreversible or
 # side-effect-bearing action on load. Prerendering these is almost
-# always wrong.
+# always wrong. The (/|\?|$) boundary stops a segment at a slash, a
+# query string, or the end of the URL, so /checkout?step=1 is caught.
+_END = r"(/|\?|$)"
 ONE_TIME_ACTION_PATTERNS = (
-    r"/checkout(/|$)",
-    r"/confirm(/|$)",
-    r"/confirmation(/|$)",
-    r"/order/[^/]+/complete",
-    r"/order/[^/]+/confirmation",
-    r"/payment(/|$)",
-    r"/pay(/|$)",
-    r"/unsubscribe(/|$)",
-    r"/opt-out(/|$)",
-    r"/logout(/|$)",
-    r"/signout(/|$)",
-    r"/sign-out(/|$)",
-    r"/delete(/|$)",
-    r"/cancel(/|$)",
-    r"/verify(/|$)",
-    r"/reset-password(/|$)",
-    r"/password-reset(/|$)",
-    r"/api(/|$)",
+    rf"/checkout{_END}",
+    rf"/confirm{_END}",
+    rf"/confirmation{_END}",
+    rf"/order/[^/]+/complete{_END}",
+    rf"/order/[^/]+/confirmation{_END}",
+    rf"/payment{_END}",
+    rf"/pay{_END}",
+    rf"/cart{_END}",
+    rf"/add-to-cart{_END}",
+    r"[?&]add[-_]to[-_]cart=",
+    rf"/unsubscribe{_END}",
+    rf"/opt-out{_END}",
+    rf"/logout{_END}",
+    rf"/signout{_END}",
+    rf"/sign-out{_END}",
+    rf"/delete{_END}",
+    rf"/cancel{_END}",
+    rf"/verify{_END}",
+    rf"/reset-password{_END}",
+    rf"/password-reset{_END}",
+    rf"/api{_END}",
 )
 
 # Patterns considered "broad" when paired with eagerness: immediate.
@@ -98,20 +111,46 @@ class ValidationReport:
 
 
 def fetch_rules_from_url(url: str) -> tuple[dict[str, Any], str]:
-    """Fetch a URL and return the parsed speculation rules and origin."""
-    response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
+    """Fetch a URL and return the merged speculation rules and origin.
+
+    A page may carry several <script type="speculationrules"> elements;
+    the browser unions them, so the validator merges every script's
+    prerender and prefetch rule lists and validates the combined set.
+    """
+    response = requests.get(
+        url,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+        headers={"User-Agent": USER_AGENT},
+    )
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, "html.parser")
-    script = soup.find("script", attrs={"type": "speculationrules"})
-    if not script or not script.string:
+    scripts = soup.find_all("script", attrs={"type": "speculationrules"})
+    if not scripts:
         raise ValueError(
             "no <script type=\"speculationrules\"> element found on the page"
         )
 
-    parsed = json.loads(script.string)
+    merged: dict[str, Any] = {"prerender": [], "prefetch": []}
+    for script in scripts:
+        if not script.string:
+            continue
+        parsed = json.loads(script.string)
+        for action in ("prerender", "prefetch"):
+            rule_list = parsed.get(action)
+            if isinstance(rule_list, list):
+                merged[action].extend(rule_list)
+
+    # Drop empty action buckets so the report only counts what is present.
+    merged = {action: rules for action, rules in merged.items() if rules}
+    if not merged:
+        raise ValueError(
+            "speculation rules script(s) present but contained no "
+            "prerender or prefetch rules"
+        )
+
     page_origin = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
-    return parsed, page_origin
+    return merged, page_origin
 
 
 def load_rules_from_file(path: Path) -> dict[str, Any]:
@@ -201,6 +240,24 @@ def _validate_rule(
 ) -> None:
     """Run the checks against a single rule and append findings."""
     eagerness = rule.get("eagerness")
+
+    # An explicit but invalid eagerness value makes the browser ignore the
+    # rule outright, so the speculation silently never happens.
+    if eagerness is not None and eagerness not in VALID_EAGERNESS:
+        report.findings.append(
+            Finding(
+                severity="medium",
+                action=action,
+                rule_index=index,
+                message=(
+                    f"eagerness '{eagerness}' is not a valid value. Use one "
+                    f"of {', '.join(VALID_EAGERNESS)}. The browser ignores a "
+                    f"rule with an invalid eagerness, so this speculation "
+                    f"never runs."
+                ),
+            )
+        )
+
     if eagerness is None:
         eagerness = default_eagerness(rule)
         if eagerness == "immediate":
