@@ -37,7 +37,7 @@ from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright
+from playwright.async_api import Browser, async_playwright
 
 GOOGLEBOT_UA = (
     "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) "
@@ -83,27 +83,29 @@ def fetch_raw_text(url: str) -> str:
     return soup.get_text(separator=" ", strip=True)
 
 
-async def fetch_rendered_text(url: str) -> str:
-    """Render the URL in headless Chromium and return visible body text."""
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+async def fetch_rendered_text(url: str, browser: Browser) -> str:
+    """Render the URL in headless Chromium and return visible body text.
+
+    The browser is shared across URLs; each call gets a fresh context so
+    cookies and storage stay isolated without re-paying the launch cost.
+    """
+    context = await browser.new_context(user_agent=GOOGLEBOT_UA)
+    try:
+        page = await context.new_page()
+        await page.goto(url, timeout=RENDER_TIMEOUT_MS, wait_until="load")
+        # Wait briefly for network-idle, which approximates the end of
+        # most async work. Capped by RENDER_NETWORK_IDLE_MS to keep the
+        # audit responsive on pages that never reach idle.
         try:
-            context = await browser.new_context(user_agent=GOOGLEBOT_UA)
-            page = await context.new_page()
-            await page.goto(url, timeout=RENDER_TIMEOUT_MS, wait_until="load")
-            # Wait briefly for network-idle, which approximates the end of
-            # most async work. Capped by RENDER_NETWORK_IDLE_MS to keep the
-            # audit responsive on pages that never reach idle.
-            try:
-                await page.wait_for_load_state(
-                    "networkidle", timeout=RENDER_NETWORK_IDLE_MS
-                )
-            except Exception:
-                # networkidle is best-effort, not fatal.
-                pass
-            return await page.evaluate("() => document.body.innerText")
-        finally:
-            await browser.close()
+            await page.wait_for_load_state(
+                "networkidle", timeout=RENDER_NETWORK_IDLE_MS
+            )
+        except Exception:
+            # networkidle is best-effort, not fatal.
+            pass
+        return await page.evaluate("() => document.body.innerText")
+    finally:
+        await context.close()
 
 
 _TOKEN_RE = re.compile(r"\w+", flags=re.UNICODE)
@@ -127,11 +129,11 @@ def compute_score(raw_tokens: Counter[str], rendered_tokens: Counter[str]) -> fl
     return max(0.0, min(1.0, score))
 
 
-async def audit(url: str) -> AuditResult:
+async def audit(url: str, browser: Browser) -> AuditResult:
     """Audit a single URL and return the result."""
     try:
         raw_text = fetch_raw_text(url)
-        rendered_text = await fetch_rendered_text(url)
+        rendered_text = await fetch_rendered_text(url, browser)
     except Exception as exc:
         return AuditResult(
             url=url,
@@ -199,10 +201,7 @@ async def main_async(args: argparse.Namespace) -> int:
         print("Provide a URL or --urls <file>.", file=sys.stderr)
         return 2
 
-    results: list[AuditResult] = []
-    for url in urls:
-        result = await audit(url)
-        results.append(result)
+    def progress(result: AuditResult) -> None:
         if args.csv:
             # Stream progress to stderr while still writing CSV at the end.
             print(
@@ -211,6 +210,35 @@ async def main_async(args: argparse.Namespace) -> int:
                 + (f"\tERROR: {result.error}" if result.error else ""),
                 file=sys.stderr,
             )
+
+    results: list[AuditResult] = []
+    # Launch Chromium once and reuse it across URLs; each audit runs in a
+    # fresh context. Re-launching per URL also restarts the Playwright
+    # driver, which dominates wall-clock time on batch runs.
+    async with async_playwright() as p:
+        try:
+            browser = await p.chromium.launch(headless=True)
+        except Exception as exc:
+            # A launch failure (e.g. `playwright install chromium` was never
+            # run) is reported once per URL so batch output stays complete.
+            for url in urls:
+                result = AuditResult(
+                    url=url,
+                    raw_word_count=0,
+                    rendered_word_count=0,
+                    rendering_debt_score=0.0,
+                    error=str(exc),
+                )
+                results.append(result)
+                progress(result)
+        else:
+            try:
+                for url in urls:
+                    result = await audit(url, browser)
+                    results.append(result)
+                    progress(result)
+            finally:
+                await browser.close()
 
     if args.csv:
         write_csv(results, Path(args.csv))
