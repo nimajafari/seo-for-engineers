@@ -13,7 +13,11 @@ on a schedule rather than calling the endpoints on every request.
 Usage:
     python verify-googlebot-ip.py <ip>
 
-Exits 0 if the IP is in a published range, 1 otherwise.
+Exit codes:
+    0  the IP is in a published Google crawler range
+    1  the IP is not in any published range (range lists were fetched)
+    2  no range list could be fetched, so the result is indeterminate
+       (a transient network failure must not be read as "not Googlebot")
 
 macOS note: if you see "SSL: CERTIFICATE_VERIFY_FAILED", the Python.org
 installer does not register with the system trust store. Fix with either:
@@ -92,15 +96,28 @@ def main() -> int:
 
     context = build_ssl_context()
 
+    fetched_any = False
     for name, url in SOURCES.items():
         try:
             ranges = fetch_ranges(url, context)
         except Exception as exc:
             print(f"Could not fetch {name} ranges: {exc}", file=sys.stderr)
             continue
+        fetched_any = True
         if ip_in_ranges(args.ip, ranges):
             print(f"OK, {args.ip} is in the {name} range list")
             return 0
+
+    # If no source could be fetched, the IP is unverified, not confirmed
+    # absent. Returning a distinct code keeps a transient outage from
+    # being misread as "this IP is not Googlebot" by a calling gate.
+    if not fetched_any:
+        print(
+            f"Could not fetch any Google crawler range list; "
+            f"verification of {args.ip} is indeterminate",
+            file=sys.stderr,
+        )
+        return 2
 
     print(f"{args.ip} is not in any published Google crawler IP range")
     return 1

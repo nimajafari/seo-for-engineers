@@ -38,12 +38,15 @@ if [[ "$HOST" != *.googlebot.com && "$HOST" != *.google.com ]]; then
   exit 1
 fi
 
-# Step 3: Forward DNS on the returned hostname, and check it resolves
-# back to the original IP.
-FORWARD_IP=$(dig +short "$HOST" | head -1)
-echo "Forward DNS: $FORWARD_IP"
+# Step 3: Forward DNS on the returned hostname, and check the original IP
+# is among the resolved addresses. Query both A and AAAA records: a host
+# can have several addresses, and Googlebot also crawls over IPv6, so a
+# single first-A check (`head -1`) would falsely reject either case.
+FORWARD_IPS=$(dig +short A "$HOST"; dig +short AAAA "$HOST")
+echo "Forward DNS:"
+printf '%s\n' "$FORWARD_IPS" | sed 's/^/  /'
 
-if [ "$FORWARD_IP" = "$IP" ]; then
+if printf '%s\n' "$FORWARD_IPS" | grep -qxF "$IP"; then
   echo "OK, verified Googlebot ($IP)"
   exit 0
 else

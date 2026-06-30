@@ -109,3 +109,16 @@ def test_main_continues_when_one_source_fails(monkeypatch, capsys):
     monkeypatch.setattr(mod, "fetch_ranges", flaky_fetch)
     assert mod.main() == 0
     assert "Could not fetch" in capsys.readouterr().err
+
+
+def test_main_returns_two_when_all_sources_fail(monkeypatch, capsys):
+    """If no range list can be fetched, the result is indeterminate (2),
+    not a confident 'not Googlebot' (1)."""
+
+    def always_fail(url, ctx):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(sys, "argv", ["verify-googlebot-ip.py", "66.249.66.1"])
+    monkeypatch.setattr(mod, "fetch_ranges", always_fail)
+    assert mod.main() == 2
+    assert "indeterminate" in capsys.readouterr().err
