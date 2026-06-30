@@ -34,6 +34,7 @@ import csv
 import json
 import os
 import sys
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -43,6 +44,13 @@ import requests
 
 CRUX_ENDPOINT = "https://chromeuxreport.googleapis.com/v1/records:queryRecord"
 REQUEST_TIMEOUT_SECONDS = 20
+
+# The CrUX API enforces a per-minute quota and can return transient 5xx
+# errors. Batch runs over many URLs hit these routinely, so retry the
+# retryable statuses with exponential backoff before giving up.
+RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+MAX_RETRIES = 3
+RETRY_BACKOFF_BASE_SECONDS = 1.0
 
 METRIC_KEYS = (
     "largest_contentful_paint",
@@ -64,6 +72,10 @@ class CruxResult:
     url: str
     has_data: bool = False
     form_factor: str = ""
+    # Last day of the CrUX collection window (YYYY-MM-DD). CrUX reports a
+    # trailing 28-day aggregate, so this dates the row when accumulating a
+    # longitudinal record across monthly runs.
+    collection_period_end: str | None = None
     # Per-metric p75 values and good/ni/poor percentages.
     metrics: dict[str, dict[str, float | None]] = field(default_factory=dict)
     error: str | None = None
@@ -91,15 +103,35 @@ def query_crux(
     if form_factor:
         body["formFactor"] = form_factor
 
-    try:
-        response = requests.post(
-            CRUX_ENDPOINT,
-            params={"key": api_key},
-            json=body,
-            timeout=REQUEST_TIMEOUT_SECONDS,
-        )
-    except Exception as exc:
-        return False, None, f"request failed: {exc}"
+    response = None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            response = requests.post(
+                CRUX_ENDPOINT,
+                params={"key": api_key},
+                json=body,
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            # Transient network failure: back off and retry a few times.
+            if attempt < MAX_RETRIES:
+                time.sleep(RETRY_BACKOFF_BASE_SECONDS * (2**attempt))
+                continue
+            return False, None, f"request failed: {exc}"
+
+        if response.status_code in RETRYABLE_STATUS and attempt < MAX_RETRIES:
+            # Honor Retry-After when the server sends a plain seconds value,
+            # otherwise fall back to exponential backoff.
+            retry_after = response.headers.get("Retry-After", "")
+            delay = (
+                float(retry_after)
+                if retry_after.isdigit()
+                else RETRY_BACKOFF_BASE_SECONDS * (2**attempt)
+            )
+            time.sleep(delay)
+            continue
+
+        break
 
     if response.status_code == 404:
         return False, None, None
@@ -152,6 +184,17 @@ def extract_metrics(record: dict[str, Any]) -> dict[str, dict[str, float | None]
     return out
 
 
+def extract_collection_period_end(record: dict[str, Any]) -> str | None:
+    """Return the last day of the CrUX collection window as YYYY-MM-DD."""
+    last = record.get("collectionPeriod", {}).get("lastDate")
+    if not last:
+        return None
+    try:
+        return f"{int(last['year']):04d}-{int(last['month']):02d}-{int(last['day']):02d}"
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def fetch_one(
     api_key: str,
     url: str,
@@ -178,6 +221,7 @@ def fetch_one(
 
     assert record is not None
     result.has_data = True
+    result.collection_period_end = extract_collection_period_end(record)
     result.metrics = extract_metrics(record)
     return result
 
@@ -194,7 +238,7 @@ def load_urls(path: Path) -> list[str]:
 
 def write_csv(results: Iterable[CruxResult], path: Path) -> None:
     """Write CrUX results to a CSV file."""
-    header = ["url", "has_data", "form_factor"]
+    header = ["url", "has_data", "form_factor", "collection_period_end"]
     for short in METRIC_SHORT_NAMES.values():
         header += [
             f"{short}_p75",
@@ -208,7 +252,12 @@ def write_csv(results: Iterable[CruxResult], path: Path) -> None:
         writer = csv.writer(fh)
         writer.writerow(header)
         for r in results:
-            row: list[Any] = [r.url, "yes" if r.has_data else "no", r.form_factor]
+            row: list[Any] = [
+                r.url,
+                "yes" if r.has_data else "no",
+                r.form_factor,
+                r.collection_period_end or "",
+            ]
             for short in METRIC_SHORT_NAMES.values():
                 m = r.metrics.get(short, {})
                 row += [

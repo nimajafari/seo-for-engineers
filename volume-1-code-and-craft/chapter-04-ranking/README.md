@@ -55,7 +55,9 @@ for the Page Experience signal.
 
 Output is a CSV with LCP, INP, and CLS values at the 75th percentile,
 along with the percentage of visits in the "good", "needs improvement",
-and "poor" buckets for each metric. Running this monthly creates the
+and "poor" buckets for each metric. Each row also carries
+`collection_period_end`, the last day of the trailing 28-day CrUX
+window, which dates the data when you run this monthly to build the
 longitudinal record described in the Manager Lens section of the
 chapter.
 
@@ -69,7 +71,7 @@ Single URL
 python crux-fetcher.py https://example.com/
 Batch mode, one URL per line in a text file, CSV output
 python crux-fetcher.py --urls urls.txt --csv report.csv
-Phone form factor (default), desktop, or tablet
+Restrict to a form factor (default is all form factors combined)
 python crux-fetcher.py --urls urls.txt --csv report.csv --form-factor DESKTOP
 
 URLs without enough traffic to have CrUX data will return a 404 from
