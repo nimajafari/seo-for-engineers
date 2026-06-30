@@ -9,11 +9,18 @@ what Googlebot sees in wave one (raw HTML) and what it sees in wave two
 
 ### `compare-raw-vs-rendered.sh`
 
-Fetches a URL twice. Once with the Googlebot user-agent, which is what
-Googlebot's wave-one fetcher sees. Once with a normal browser user-agent.
-The delta between the two responses is your rendering gap. Content that
-appears only in the second response and not the first is
-rendering-dependent.
+Fetches a URL twice with curl: once with the Googlebot user-agent and
+once with a desktop-browser user-agent, printing both responses with a
+banner between them.
+
+Because curl does not execute JavaScript, the delta between the two
+responses is **not** the client-side rendering gap. It is whatever the
+server returns differently for the two user-agents, which surfaces
+user-agent-adaptive serving and cloaking. For a client-rendered SPA both
+fetches typically return the same shell, so this script shows no
+difference even when the JavaScript rendering gap is large. To measure
+that gap — content injected after load — use `rendering-debt-audit.py`,
+which runs a real headless browser.
 
 Usage:
 ./compare-raw-vs-rendered.sh https://example.com/page
