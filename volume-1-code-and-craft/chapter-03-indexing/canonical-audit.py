@@ -31,7 +31,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import urlparse, parse_qsl, urlunparse
+from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -116,6 +116,25 @@ def find_tracking_params_in_url(url: str) -> list[str]:
     return [name for name, _ in params if is_tracking_parameter(name)]
 
 
+def strip_tracking_params(url: str) -> str:
+    """Drop tracking query parameters, preserving identity-bearing ones.
+
+    Used when comparing the page URL to its canonical: a page reached
+    with ?utm_source=... that correctly canonicalizes to the clean URL is
+    properly configured, not a duplicate, so the tracking params must not
+    make the two URLs look different.
+    """
+    parsed = urlparse(url)
+    kept = [
+        (name, value)
+        for name, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not is_tracking_parameter(name)
+    ]
+    return urlunparse(
+        (parsed.scheme, parsed.netloc, parsed.path, parsed.params, urlencode(kept), "")
+    )
+
+
 def audit_url(url: str) -> CanonicalAuditResult:
     """Audit a single URL and return the result."""
     result = CanonicalAuditResult(url=url)
@@ -183,11 +202,14 @@ def audit_url(url: str) -> CanonicalAuditResult:
 
     # Self-canonical mismatch. Compare the page's resolved URL to the
     # canonical, after a light normalization that ignores trailing slashes
-    # and scheme/host case.
+    # and scheme/host case. Tracking parameters are stripped from both
+    # sides first: a page reached with ?utm_source=... that canonicalizes
+    # to the clean URL is correct, not a duplicate.
     if (
         parsed_canonical.scheme
         and parsed_canonical.netloc
-        and normalize_url(canonical_href) != normalize_url(final_url)
+        and normalize_url(strip_tracking_params(canonical_href))
+        != normalize_url(strip_tracking_params(final_url))
     ):
         result.issues.append(
             "page URL does not match canonical (page may be a duplicate)"

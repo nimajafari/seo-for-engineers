@@ -22,7 +22,9 @@ element in the document, and reports the following.
   parameters (`utm_*`, `fbclid`, `gclid`, `session_id`, and similar).
 - Canonical points to a URL on a different host.
 - Page URL and canonical URL differ after normalization (the page is
-  not self-canonical and may be a duplicate).
+  not self-canonical and may be a duplicate). Tracking parameters are
+  stripped before this comparison, so a page reached with `?utm_source=…`
+  that canonicalizes to the clean URL is treated as correct, not flagged.
 
 The script does not follow the canonical link to verify that the target
 returns a 200 status. That is intentional. Following can be expensive on
