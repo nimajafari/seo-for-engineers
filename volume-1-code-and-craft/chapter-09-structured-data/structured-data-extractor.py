@@ -3,10 +3,15 @@
 structured-data-extractor.py
 
 Fetch a URL (or a list of URLs), extract all JSON-LD blocks from the
-rendered HTML, parse each block, and validate it against a registry
+raw HTML response, parse each block, and validate it against a registry
 of per-type rules covering Google's required-field requirements for
 the schema types Chapter 9 of SEO for Engineers, Volume 1, identifies
 as highest value.
+
+This reads the raw HTTP response, so JSON-LD injected client-side (e.g.
+by Google Tag Manager) is not captured. To validate JSON-LD in the
+rendered DOM, use schema-consistency-checker.js in this directory, which
+loads the page in a real browser.
 
 Severity buckets:
 
@@ -88,6 +93,11 @@ VALID_AVAILABILITY = {
     "https://schema.org/Discontinued",
     "https://schema.org/LimitedAvailability",
 }
+
+# Leaf names of the availability enum, so the check accepts the
+# https://, http://, and bare-name forms Google all treat as valid
+# (comparing full https:// URLs alone would flag valid http:// markup).
+VALID_AVAILABILITY_NAMES = {url.rsplit("/", 1)[-1] for url in VALID_AVAILABILITY}
 
 # Currency code regex (ISO 4217).
 ISO_4217_RE = re.compile(r"^[A-Z]{3}$")
@@ -350,7 +360,7 @@ def check_offer(obj: dict, report: BlockReport) -> None:
         )
 
     availability = obj.get("availability")
-    if availability and availability not in VALID_AVAILABILITY:
+    if availability and str(availability).rsplit("/", 1)[-1] not in VALID_AVAILABILITY_NAMES:
         report.findings.append(
             Finding(
                 severity="medium",
@@ -723,7 +733,7 @@ def main() -> int:
         urls = [
             line.strip()
             for line in Path(args.urls_file).read_text().splitlines()
-            if line.strip() and not line.startswith("#")
+            if line.strip() and not line.strip().startswith("#")
         ]
 
     reports = []

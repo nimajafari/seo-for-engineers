@@ -21,7 +21,8 @@
 //     not just a function reference.
 //
 // Setup:
-//   npm install jsdom ajv ajv-formats node-fetch
+//   npm install jsdom ajv ajv-formats
+//   (fetch is the global from Node 18+; no node-fetch needed)
 //
 // Usage:
 //   node ci-validate-structured-data.example.js \\
@@ -144,6 +145,25 @@ function matchTemplate(pathname) {
 // Extraction
 // -----------------------------------------------------------------------------
 
+// Flatten a parsed JSON-LD value into a list of individual typed nodes.
+// A block is commonly a single object with an "@graph" array (the shape
+// Yoast, Rank Math, and most CMS plugins emit), or a top-level array.
+// Without flattening, the @graph wrapper has no "@type", so every node
+// inside it is skipped by validation and counted as missing by the
+// regression check.
+function flattenSchemas(node) {
+  if (Array.isArray(node)) {
+    return node.flatMap(flattenSchemas);
+  }
+  if (node && typeof node === 'object') {
+    if (Array.isArray(node['@graph'])) {
+      return node['@graph'].flatMap(flattenSchemas);
+    }
+    return [node];
+  }
+  return [];
+}
+
 async function extractJsonLd(html) {
   const dom = new JSDOM(html);
   const scripts = dom.window.document.querySelectorAll(
@@ -156,12 +176,7 @@ async function extractJsonLd(html) {
   scripts.forEach((script, i) => {
     const text = script.textContent || '';
     try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) {
-        schemas.push(...parsed);
-      } else {
-        schemas.push(parsed);
-      }
+      schemas.push(...flattenSchemas(JSON.parse(text)));
     } catch (e) {
       parseErrors.push(`block #${i}: ${e.message}`);
     }

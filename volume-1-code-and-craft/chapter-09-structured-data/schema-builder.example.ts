@@ -28,8 +28,25 @@
 //   - mapAvailability includes Discontinued, matching the chapter's
 //     Django _availability_url helper and the structured-data-
 //     extractor.py validator in this directory.
+//   - the escape helper is shared, so BreadcrumbSchemaBuilder sanitizes
+//     its labels too, not just ProductSchemaBuilder.
 //
 // Reference: SEO for Engineers, Volume 1, Chapter 9.
+
+/**
+ * Three-character escape that stops a JSON-LD string value from breaking
+ * out of the surrounding <script> tag. Shared by every builder so that
+ * all user-controllable strings (product names, breadcrumb labels, ...)
+ * are escaped consistently. This is the Failure Mode 8 defense from
+ * Chapter 9; any builder that emits an unescaped string reopens the XSS
+ * hole the extractor's unsanitized_user_content check exists to catch.
+ */
+export function escapeJsonLd(input: string): string {
+  return input
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
 
 export interface ProductImage {
   url?: string;
@@ -113,17 +130,8 @@ export class ProductSchemaBuilder implements SchemaBuilder<ProductPageData> {
     return schema;
   }
 
-  /**
-   * Three-character escape that prevents JSON-LD injection from
-   * breaking out of the surrounding <script> tag. Matches the
-   * sanitization standard used across every framework example in
-   * Chapter 9.
-   */
   private sanitize(input: string): string {
-    return input
-      .replace(/</g, '\\u003c')
-      .replace(/>/g, '\\u003e')
-      .replace(/&/g, '\\u0026');
+    return escapeJsonLd(input);
   }
 
   private mapAvailability(status: string): string {
@@ -148,10 +156,13 @@ export class BreadcrumbSchemaBuilder
     return {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
+      // Breadcrumb labels are page-derived (category names, titles) and
+      // must be escaped just like product fields, or they reopen the
+      // Failure Mode 8 injection hole.
       itemListElement: data.map((item, index) => ({
         '@type': 'ListItem',
         position: index + 1,
-        name: item.label,
+        name: escapeJsonLd(item.label),
         item: item.url,
       })),
     };
