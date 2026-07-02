@@ -55,7 +55,8 @@ JS_CHAPTERS := \
   chapter-05-javascript-rendering \
   chapter-06-core-web-vitals \
   chapter-07-semantic-html \
-  chapter-08-head-management
+  chapter-08-head-management \
+  chapter-09-structured-data
 
 # Chapters with shell-script smoke tests.
 SH_CHAPTERS := \
