@@ -127,7 +127,13 @@ def parse_sitemap(sitemap_url: str) -> set[str]:
         return urls
 
     try:
-        root = etree.fromstring(response.content)
+        # Sitemaps come from arbitrary, possibly untrusted URLs. Disable
+        # entity resolution and network access so a hostile sitemap cannot
+        # mount an XXE or billion-laughs entity-expansion attack.
+        parser = etree.XMLParser(
+            resolve_entities=False, no_network=True, dtd_validation=False
+        )
+        root = etree.fromstring(response.content, parser=parser)
     except Exception as exc:
         print(
             f"WARN: failed to parse sitemap {sitemap_url}: {exc}",
