@@ -91,7 +91,13 @@ def parse_sitemap(
 
     try:
         content = fetch_sitemap_content(source)
-        root = etree.fromstring(content)
+        # Sitemaps come from arbitrary, possibly untrusted URLs. Disable
+        # entity resolution and network access so a hostile sitemap cannot
+        # mount an XXE or billion-laughs entity-expansion attack.
+        parser = etree.XMLParser(
+            resolve_entities=False, no_network=True, dtd_validation=False
+        )
+        root = etree.fromstring(content, parser=parser)
     except Exception as exc:
         print(f"WARN: failed to load {source}, {exc}", file=sys.stderr)
         return {}

@@ -96,6 +96,18 @@ export default {
       `/${locale}${url.pathname}${url.search}`,
       url.origin,
     );
-    return Response.redirect(redirectUrl.toString(), 302);
+    // The target depends on Accept-Language, so any shared cache must key
+    // on that header. Without Vary, a CDN could cache one user's locale
+    // redirect and replay it to everyone, the same cross-user locale
+    // leak that constraint 1 avoids by using 302 instead of 301.
+    // Response.redirect() produces an immutable response with no way to
+    // add headers, so build the redirect explicitly.
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: redirectUrl.toString(),
+        Vary: "Accept-Language",
+      },
+    });
   },
 };
