@@ -57,7 +57,8 @@ JS_CHAPTERS := \
   chapter-07-semantic-html \
   chapter-08-head-management \
   chapter-09-structured-data \
-  chapter-10-internal-linking
+  chapter-10-internal-linking \
+  chapter-11-internationalization
 
 # Chapters with shell-script smoke tests.
 SH_CHAPTERS := \
