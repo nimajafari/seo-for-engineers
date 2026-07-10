@@ -16,6 +16,23 @@ a Next.js or similar React-based stack. The responsibility matrix
 is the team document the chapter argues every headless practice
 should maintain.
 
+## Setup
+
+This chapter has two toolchains, Python and Node.js. From this directory:
+
+Python:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Node.js:
+
+```bash
+npm install
+```
+
 ## Artifacts
 
 ### `canonical_helper.ts`

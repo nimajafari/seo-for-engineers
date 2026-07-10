@@ -5,6 +5,15 @@ of *SEO for Engineers, Volume 1*. The scripts let you analyze your
 site's internal link graph as a graph and pull field Core Web Vitals
 data from the same source Google's ranking systems use.
 
+## Setup
+
+The scripts in this chapter are Python. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Scripts
 
 ### `link-graph-audit.py`
@@ -78,11 +87,6 @@ URLs without enough traffic to have CrUX data will return a 404 from
 the API. The script logs these and marks them with `has_data=no` in
 the CSV. For low-traffic pages, you can fall back to origin-level data
 by passing `--origin` to query the domain-level aggregate instead.
-
-### Installing
-
-Both scripts require Python 3.10 or later. Install dependencies once.
-pip install -r requirements.txt
 
 ## Primary sources
 

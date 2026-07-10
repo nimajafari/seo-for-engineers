@@ -38,6 +38,27 @@ side, which the four scripts above only verify:
    build loudly on an unrecognized environment rather than falling
    through to `Disallow: /`.
 
+## Setup
+
+This chapter's tooling spans Python, Node.js, and a Bash wrapper around
+Google's C++ robots.txt parser. From this directory:
+
+Python:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Node.js:
+
+```bash
+npm install
+```
+
+The Bash parser check also needs Google's `robots` binary; see
+[Installing the Google parser](#installing-the-google-parser) below.
+
 ## Choosing between parsers
 
 For most teams, `robots-ci-check.py` plus
@@ -70,8 +91,7 @@ the `robots-parser` npm package. The file is configured for
 `https://www.example.com`; edit the URL lists at the top of the
 script for your origin.
 
-Usage.
-npm install
+Usage (dependencies installed in Setup):
 node check-robots-nodejs.mjs                  # uses public/robots.txt
 node check-robots-nodejs.mjs path/to/file     # explicit path
 

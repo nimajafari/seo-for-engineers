@@ -8,6 +8,24 @@ links and identifying orphan pages and click-depth problems, and
 verifying that paginated URL series remain crawlable through
 Google-compatible `<a href>` link structures.
 
+## Setup
+
+This chapter has two toolchains, Python and Node.js. From this directory:
+
+Python:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Node.js:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
 ## Scripts
 
 ### `link-graph-analyzer.py`
@@ -60,9 +78,6 @@ python link-graph-analyzer.py --crawl crawl-export.csv --homepage https://exampl
 Write report to a file
 python link-graph-analyzer.py --crawl crawl-export.csv --homepage https://example.com/ --output report.json
 
-Install:
-pip install -r requirements.txt
-
 ### `pagination-crawlability-checker.js`
 
 A Playwright-based script that walks a paginated URL series and
@@ -98,10 +113,6 @@ node pagination-crawlability-checker.js https://example.com/category/keyboards -
 
 The script exits non-zero if any high-severity issue is found, so it
 can be wired into CI as a gate for pagination regressions.
-
-Install:
-npm install
-npx playwright install chromium
 
 ## Reference snippets
 

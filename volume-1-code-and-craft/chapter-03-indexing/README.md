@@ -5,6 +5,15 @@ of *SEO for Engineers, Volume 1*. The scripts help you audit canonical
 tags at scale and detect soft 404s before they degrade your index
 coverage.
 
+## Setup
+
+The scripts in this chapter are Python. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Scripts
 
 ### `canonical-audit.py`
@@ -76,11 +85,6 @@ URL shape across three dimensions: protocol (HTTP -> HTTPS), host
 slashes for non-directory URLs). Adapt the domain and certificate paths
 to your environment. URL casing is handled at the application layer,
 not here.
-
-### Installing
-
-Both Python scripts require Python 3.10 or later. Install dependencies once.
-pip install -r requirements.txt
 
 ## Primary sources
 

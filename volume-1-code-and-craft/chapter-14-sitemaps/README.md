@@ -8,6 +8,15 @@ against the twelve failure modes the chapter catalogues, and
 monitoring the accuracy of `<lastmod>` values against actual page
 content over time.
 
+## Setup
+
+The scripts in this chapter are Python. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Scripts
 
 ### `sitemap-auditor.py`
@@ -86,9 +95,6 @@ python sitemap-auditor.py --sitemap https://example.com/sitemap.xml --output rep
 The script exits non-zero if any error-severity finding is reported,
 so it can be wired into CI as a deployment gate.
 
-Install.
-pip install -r requirements.txt
-
 ### `sitemap-freshness-monitor.py`
 
 A Python script that validates whether `<lastmod>` values in a
@@ -141,9 +147,6 @@ The script exits non-zero if any error-severity finding is reported.
 Overactive and stale `<lastmod>` findings are surfaced as warnings,
 which is the appropriate severity for a signal that must be
 investigated but is not by itself a deployment blocker.
-
-Install.
-pip install -r requirements.txt
 
 ## Primary sources
 

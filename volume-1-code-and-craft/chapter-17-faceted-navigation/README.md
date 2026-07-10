@@ -19,6 +19,15 @@ the front-end reference for Strategy 3 (crawler-invisible filters).
 Each piece maps to a specific section of the chapter, so a reader can
 trace any artifact back to the prose that motivates it.
 
+## Setup
+
+The scripts in this chapter are Python. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Scripts
 
 ### `facet_classifier.py`
@@ -202,11 +211,6 @@ canonical tag and the `meta name="robots"` content (or the
 catches both pre-deploy regressions (the local classifier mode) and
 post-deploy serving issues (the HTTP mode), which the chapter
 argues are different failure surfaces requiring separate coverage.
-
-Install.
-```
-pip install -r requirements.txt
-```
 
 ### `check_robots_facets.py`
 

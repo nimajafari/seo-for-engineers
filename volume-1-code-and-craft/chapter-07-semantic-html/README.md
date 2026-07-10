@@ -5,6 +5,24 @@ of *SEO for Engineers, Volume 1*. The scripts audit pages for the
 semantic HTML patterns the chapter argues matter for indexing quality,
 content extraction, and anchor signal interpretation.
 
+## Setup
+
+This chapter has two toolchains, Python and Node.js. From this directory:
+
+Python:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Node.js:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
 ## Scripts
 
 ### `semantic-html-auditor.py`
@@ -43,9 +61,6 @@ python semantic-html-auditor.py --urls-file urls.txt
 JSON output to a file
 python semantic-html-auditor.py --url https://example.com/ --output report.json
 
-Install:
-pip install -r requirements.txt
-
 ### `heading-hierarchy-validator.js`
 
 A Playwright-based validator that loads a URL in headless Chromium and
@@ -68,13 +83,6 @@ Multiple URLs
 node heading-hierarchy-validator.js --urls https://example.com/ https://example.com/products/widget
 URLs from a file (one per line, # for comments)
 node heading-hierarchy-validator.js --urls-file urls.txt
-
-Install:
-
-```bash
-npm install
-npx playwright install chromium
-```
 
 ## Reference snippets
 

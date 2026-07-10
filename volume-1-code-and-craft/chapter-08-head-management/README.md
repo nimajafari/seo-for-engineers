@@ -6,6 +6,24 @@ the `<head>` element across a site and provide a CI gate against the
 most expensive head-management failure mode: accidental `noindex`
 deployments to production.
 
+## Setup
+
+This chapter has two toolchains, Python and Node.js. From this directory:
+
+Python:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Node.js:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
 ## Scripts
 
 ### `head-audit.py`
@@ -48,9 +66,6 @@ python head-audit.py --sitemap https://example.com/sitemap.xml --limit 50 --chec
 JSON output to a file
 python head-audit.py --url https://example.com/ --output report.json
 
-Install:
-pip install -r requirements.txt
-
 ### `noindex-deployment-gate.js`
 
 A Playwright-based CI gate designed to run before a production
@@ -83,13 +98,6 @@ node noindex-deployment-gate.js --urls-file staging-urls.txt
 
 Exits non-zero if any URL has `noindex` set. Designed to be wired
 directly into a deployment pipeline as a required check.
-
-Install:
-
-```bash
-npm install
-npx playwright install chromium
-```
 
 ### `canonical-status-check.sh`
 
@@ -124,11 +132,10 @@ head-correctness audit across a list of URLs. For each URL it asserts
 exactly one `<title>` (non-empty, non-placeholder), exactly one
 absolute canonical, the indexing posture (combined `X-Robots-Tag`
 header + `<meta name="robots">`) matches the page's `shouldIndex`
-flag, and `og:title` + absolute `og:image` are present. Run with:
+flag, and `og:title` + absolute `og:image` are present. Run with (after
+Setup):
 
 ```bash
-npm install
-npx playwright install chromium
 npx playwright test head-audit.spec.ts
 ```
 

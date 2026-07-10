@@ -6,6 +6,24 @@ help you verify that your rendering strategy actually delivers content
 to crawlers, and that your Speculation Rules API configuration is not
 quietly setting fire to your analytics, A/B testing, or origin load.
 
+## Setup
+
+This chapter has two toolchains, Python and Node.js. From this directory:
+
+Python:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Node.js:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
 ## Scripts and templates
 
 ### `rendering-strategy.spec.ts`
@@ -29,11 +47,9 @@ This is the working version of the test example in the chapter,
 extended with the practical assertions you actually want in CI.
 
 To use it, edit the `URLS_TO_TEST` array at the top of the file with
-the URLs you want to verify (typically staging), then run:
+the URLs you want to verify (typically staging), then, after Setup, run:
 
 ```bash
-npm install
-npx playwright install chromium
 npx playwright test rendering-strategy.spec.ts
 ```
 
@@ -90,9 +106,6 @@ Validate rules embedded in a live page
 python speculation-rules-validator.py --url https://example.com/
 Validate a local JSON file
 python speculation-rules-validator.py --file rules.json
-
-Install:
-pip install -r requirements.txt
 
 ### `example-speculation-rules.json`
 
