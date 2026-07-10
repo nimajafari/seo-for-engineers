@@ -5,6 +5,17 @@ This directory contains the diagnostic scripts referenced in Chapter 2 of
 what Googlebot sees in wave one (raw HTML) and what it sees in wave two
 (rendered DOM).
 
+## Setup
+
+The scripts in this chapter are Python; the rendering audit drives the
+Playwright Python package. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+playwright install chromium
+```
+
 ## Scripts
 
 ### `compare-raw-vs-rendered.sh`
@@ -50,11 +61,8 @@ python rendering-debt-audit.py https://example.com/page
 Batch mode, one URL per line in a text file, CSV output
 python rendering-debt-audit.py --urls urls.txt --csv report.csv
 
-Requires Python 3.10 or later. Install dependencies first.
-pip install -r requirements.txt
-playwright install chromium
-
-The Playwright browser install is a one-time download of around 150MB.
+Requires Python 3.10 or later; see Setup above. The Playwright browser
+install is a one-time download of around 150MB.
 
 ### `dom-byte-counter.js`
 

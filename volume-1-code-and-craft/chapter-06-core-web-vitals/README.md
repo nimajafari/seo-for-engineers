@@ -7,6 +7,15 @@ beyond what Lighthouse provides: collect field data from real users,
 inspect the LCP four-part decomposition for a specific page, and
 verify bfcache eligibility.
 
+## Setup
+
+The scripts in this chapter are Node.js. From this directory:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
 ## Scripts
 
 ### `cwv-rum-collector.js`
@@ -104,13 +113,6 @@ to `main` and runs Lighthouse CI against the deployed URLs. Pairs
 with a project-level `.lighthouserc.yml`. Copy to
 `.github/workflows/lighthouse.yml` in your repo and adapt the deploy
 step, URL list, and config path to your environment.
-
-## Installing
-
-```bash
-npm install
-npx playwright install chromium
-```
 
 ## Primary sources
 

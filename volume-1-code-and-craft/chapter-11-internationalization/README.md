@@ -8,6 +8,24 @@ complete bidirectional graph with correct codes and reachable URLs,
 and verifying that locale URLs serve their content directly without
 locale-adaptive substitution based on request headers.
 
+## Setup
+
+This chapter has two toolchains, Python and Node.js. From this directory:
+
+Python:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Node.js:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
 ## Scripts
 
 ### `hreflang-validator.py`
@@ -54,9 +72,6 @@ python hreflang-validator.py --sitemap https://example.com/sitemap.xml --output 
 The script exits non-zero if any high-severity issue is found, so it
 can be wired into CI as a deployment gate on sitemap changes.
 
-Install:
-pip install -r requirements.txt
-
 ### `locale-routing-checker.js`
 
 A Playwright-based script that verifies the rule Chapter 11
@@ -101,13 +116,6 @@ Where `urls.json` is:
 ```
 
 The script exits non-zero if any high-severity issue is found.
-
-Install:
-
-```bash
-npm install
-npx playwright install chromium
-```
 
 ## Reference snippets
 

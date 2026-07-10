@@ -9,6 +9,15 @@ analyzing the verified traffic to identify crawl waste patterns,
 and stripping tracking parameters at the edge so the waste never
 accumulates in the first place.
 
+## Setup
+
+The scripts in this chapter are Python. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Scripts
 
 ### `verify-googlebot.py`
@@ -65,9 +74,6 @@ The other Googlebot family bots (Googlebot-Image, Googlebot-News,
 Googlebot-Video, Storebot, AdsBot, etc.) are recognized by default.
 Pass `--strict-googlebot` to restrict to the primary web crawler
 token only.
-
-Install.
-pip install -r requirements.txt
 
 ### `crawl-waste-analyzer.py`
 
@@ -135,9 +141,6 @@ in *Fixing crawl waste*) operates on. Reading the JSON output,
 spotting patterns that violate the chapter's healthy-crawl
 heuristics, and deciding which remediation tool applies is the
 engineer's work.
-
-Install.
-pip install -r requirements.txt
 
 ### `strip-tracking-params-worker.js`
 

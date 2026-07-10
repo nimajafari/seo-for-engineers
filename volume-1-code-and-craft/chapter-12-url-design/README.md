@@ -8,6 +8,15 @@ against the convention rules the chapter establishes, and
 exercising a slug-generation implementation against the edge cases
 that bite in production.
 
+## Setup
+
+The scripts in this chapter are Python. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Scripts
 
 ### `url-design-linter.py`
@@ -57,9 +66,6 @@ python url-design-linter.py --sitemap <url> --output report.json
 The script exits non-zero if any high-severity issue is found, so
 it can be wired into CI as a deployment gate on sitemap changes or
 on the URL output of a build pipeline.
-
-Install:
-pip install -r requirements.txt
 
 ### `slug-generator-test-suite.py`
 
@@ -115,9 +121,6 @@ Run only specific test categories
 python slug-generator-test-suite.py --module example_slug_implementation --function generate_slug --only diacritics,collisions,length
 
 The script exits non-zero if any test case fails.
-
-Install:
-pip install -r requirements.txt
 
 ## Reference snippets
 

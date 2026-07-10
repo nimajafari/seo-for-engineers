@@ -5,6 +5,15 @@ This directory contains the diagnostic scripts referenced in Chapter 1 of
 against your own infrastructure to verify the behavior the chapter
 describes.
 
+## Setup
+
+The scripts in this chapter are Python. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Scripts
 
 ### `ttfb-benchmark.sh`
@@ -69,12 +78,9 @@ Unit tests for `verify-googlebot-ip.py` and syntax checks for the shell
 scripts live in `tests/`. The Python tests mock all network calls, so the
 suite runs offline.
 
-Run them from this directory:
+After completing Setup, run them from this directory:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
 python3 -m pytest -q
 ```
 

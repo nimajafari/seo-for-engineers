@@ -7,6 +7,24 @@ validating JSON-LD against Google's required-field requirements at
 scale, and checking that the values declared in JSON-LD actually match
 what is visible on the rendered page.
 
+## Setup
+
+This chapter has two toolchains, Python and Node.js. From this directory:
+
+Python:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Node.js:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
 ## Scripts
 
 ### `structured-data-extractor.py`
@@ -56,9 +74,6 @@ python structured-data-extractor.py --urls-file urls.txt
 JSON output to a file
 python structured-data-extractor.py --url https://example.com/ --output report.json
 
-Install:
-pip install -r requirements.txt
-
 ### `schema-consistency-checker.js`
 
 A Playwright-based script that addresses Failure Mode 4, the
@@ -88,13 +103,6 @@ Multiple URLs
 node schema-consistency-checker.js --urls https://example.com/products/widget https://example.com/products/another
 Run only specific checks
 node schema-consistency-checker.js https://example.com/products/widget --checks name,price
-
-Install:
-
-```bash
-npm install
-npx playwright install chromium
-```
 
 ## Reference snippets
 

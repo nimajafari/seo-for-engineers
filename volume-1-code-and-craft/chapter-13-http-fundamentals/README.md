@@ -8,6 +8,15 @@ population of URLs against the chapter's correctness rules, and
 monitoring TLS certificate validity, chain completeness, SAN
 coverage, and OCSP stapling status across a hostname inventory.
 
+## Setup
+
+The scripts in this chapter are Python. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Scripts
 
 ### `http-response-auditor.py`
@@ -69,9 +78,6 @@ python http-response-auditor.py --sitemap <url> --output report.json
 The script exits non-zero if any error-severity finding is reported,
 so it can be wired into CI as a deployment gate.
 
-Install:
-pip install -r requirements.txt
-
 ### `cert-and-stapling-monitor.py`
 
 A Python script that connects to a list of hostnames over TLS and
@@ -130,9 +136,6 @@ Write a JSON report
 python cert-and-stapling-monitor.py --hosts-file hosts.txt --output report.json
 
 The script exits non-zero if any error-severity finding is reported.
-
-Install:
-pip install -r requirements.txt
 
 ## Primary sources
 

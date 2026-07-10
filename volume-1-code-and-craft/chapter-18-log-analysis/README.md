@@ -20,6 +20,15 @@ ship the recommended server log formats that produce the logs
 `parse_logs.py` consumes, because none of this works if the logs
 aren't captured correctly in the first place.
 
+## Setup
+
+The scripts in this chapter are Python. From this directory:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Producing the logs (`log-formats/`)
 
 Before any analysis is possible, the server has to emit logs in a
@@ -159,8 +168,8 @@ python enrich_logs.py \
   --crawlers googlebot,bingbot
 ```
 
-The script depends on `duckdb`, `requests`, and `pyarrow`. Install
-with `pip install -r requirements.txt`.
+The script depends on `duckdb`, `requests`, and `pyarrow`, all installed
+in Setup.
 
 ### `verify_crawler.py`
 
