@@ -59,6 +59,13 @@ The script computes the following.
 - Optional PageRank computation across the internal graph, normalized
   so values sum to 1.
 
+With `--html`, the script also writes a self-contained HTML dashboard
+of the same report. It opens in any browser with no server or
+dependencies (the report JSON is embedded in the page), renders the
+depth distribution, reachability, and top-pages tables, and
+auto-surfaces findings such as flat link equity, pages beyond the
+depth threshold, orphans, and sitemap-only pages.
+
 The crawl export CSV is expected to have at least two columns,
 `source_url` and `target_url`. The legacy names `source` and
 `destination` are also accepted for backward compatibility. An
@@ -68,15 +75,24 @@ The `source_url` / `target_url` convention matches the column
 names used by Chapter 4's `link-graph-audit.py`, so a single
 crawl export can feed both tools.
 
-Usage:
-Analyze a crawl export
+#### Usage
+
+```bash
+# Analyze a crawl export
 python link-graph-analyzer.py --crawl crawl-export.csv --homepage https://example.com/
-Cross-reference against a sitemap to find sitemap-only orphans
+
+# Cross-reference against a sitemap to find sitemap-only orphans
 python link-graph-analyzer.py --crawl crawl-export.csv --homepage https://example.com/ --sitemap https://example.com/sitemap.xml
-Include PageRank in the output
+
+# Include PageRank in the output
 python link-graph-analyzer.py --crawl crawl-export.csv --homepage https://example.com/ --pagerank
-Write report to a file
+
+# Write report to a file
 python link-graph-analyzer.py --crawl crawl-export.csv --homepage https://example.com/ --output report.json
+
+# Generate a visual HTML report alongside the JSON
+python link-graph-analyzer.py --crawl crawl-export.csv --homepage https://example.com/ --pagerank --output report.json --html report.html
+```
 
 ### `pagination-crawlability-checker.js`
 
@@ -103,13 +119,18 @@ detected next-page links until it can find no further page, an
 infinite-loop protection limit is reached, or an explicit
 `--max-pages` cap is hit.
 
-Usage:
-Walk a paginated series starting from page 1
+#### Usage
+
+```bash
+# Walk a paginated series starting from page 1
 node pagination-crawlability-checker.js https://example.com/category/keyboards
-Cap the walk at 25 pages
+
+# Cap the walk at 25 pages
 node pagination-crawlability-checker.js https://example.com/category/keyboards --max-pages 25
-Require a link back to page 1 from each page
+
+# Require a link back to page 1 from each page
 node pagination-crawlability-checker.js https://example.com/category/keyboards --require-page-one-link
+```
 
 The script exits non-zero if any high-severity issue is found, so it
 can be wired into CI as a gate for pagination regressions.
