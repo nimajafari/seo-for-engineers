@@ -14,6 +14,9 @@ BASE_URL="https://example.com"
 BASE_HOST="example.com"
 export BASE_HOST
 
+USER_AGENT="Mozilla/5.0 (compatible; SeoForEngineersAuditor/1.0; \
++https://github.com/nimajafari/seo-for-engineers)"
+
 # -----------------------------------------------------------------------------
 # Cross-platform extractors
 # -----------------------------------------------------------------------------
@@ -46,7 +49,7 @@ fi
 # -----------------------------------------------------------------------------
 
 echo "Fetching sitemap: ${BASE_URL}/sitemap.xml"
-SITEMAP_URLS=$(curl -sS "${BASE_URL}/sitemap.xml" | extract_locs || true)
+SITEMAP_URLS=$(curl -sS -A "$USER_AGENT" "${BASE_URL}/sitemap.xml" | extract_locs || true)
 
 if [ -z "$SITEMAP_URLS" ]; then
   echo "ERROR: no URLs found in sitemap" >&2
@@ -60,7 +63,7 @@ for url in $SITEMAP_URLS; do
   echo ""
   echo "Page: $url"
 
-  LINKS=$(curl -sS "$url" | extract_hrefs | sort -u || true)
+  LINKS=$(curl -sS -A "$USER_AGENT" "$url" | extract_hrefs | sort -u || true)
 
   if [ -z "$LINKS" ]; then
     echo "  (no internal links found)"
@@ -74,7 +77,7 @@ for url in $SITEMAP_URLS; do
       FULL_URL="$link"
     fi
 
-    STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$FULL_URL" || echo "000")
+    STATUS=$(curl -sS -A "$USER_AGENT" -o /dev/null -w "%{http_code}" "$FULL_URL" || echo "000")
     CHECKED=$((CHECKED + 1))
 
     if [ "$STATUS" = "200" ]; then
