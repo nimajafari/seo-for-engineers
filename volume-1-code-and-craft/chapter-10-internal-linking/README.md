@@ -54,6 +54,9 @@ The script computes the following.
 - Pages in the sitemap but absent from the crawl graph (orphans by
   sitemap-vs-graph diff).
 - Pages in the graph but unreachable from the homepage.
+- A combined `total_at_risk` set: the deduplicated union of zero-inbound
+  orphans, pages unreachable from the homepage, and sitemap-only URLs,
+  corresponding to Chapter 10's fourth failure mode.
 - Top pages by in-degree (most internally linked).
 - Top pages by out-degree (most outbound internal links).
 - Optional PageRank computation across the internal graph, normalized
