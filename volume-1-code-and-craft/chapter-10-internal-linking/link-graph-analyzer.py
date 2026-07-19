@@ -113,8 +113,26 @@ def build_graph(crawl_export_path: Path) -> nx.DiGraph:
     return g
 
 
-def parse_sitemap(sitemap_url: str) -> set[str]:
-    """Parse a sitemap or sitemap index, return the union of URLs."""
+def parse_sitemap(
+    sitemap_url: str,
+    _seen: set[str] | None = None,
+    _depth: int = 0,
+) -> set[str]:
+    """Parse a sitemap or sitemap index, return the union of URLs.
+
+    A sitemap index can reference child sitemaps, which are fetched
+    recursively. ``_seen`` tracks already-fetched sitemap URLs and
+    ``_depth`` bounds the nesting so a self-referential or deeply
+    cyclic index cannot recurse forever.
+    """
+    if _seen is None:
+        _seen = set()
+
+    MAX_SITEMAP_DEPTH = 10
+    if _depth > MAX_SITEMAP_DEPTH or sitemap_url in _seen:
+        return set()
+    _seen.add(sitemap_url)
+
     urls: set[str] = set()
     try:
         response = requests.get(
@@ -151,7 +169,7 @@ def parse_sitemap(sitemap_url: str) -> set[str]:
         for child in root.findall("sm:sitemap", ns):
             loc = child.find("sm:loc", ns)
             if loc is not None and loc.text:
-                urls |= parse_sitemap(loc.text.strip())
+                urls |= parse_sitemap(loc.text.strip(), _seen, _depth + 1)
         return urls
 
     for child in root.findall("sm:url", ns):
@@ -222,6 +240,12 @@ def analyze(
             "Requested homepage was not an exact node; matched by "
             "toggling the trailing slash."
         )
+
+    # Component sets for the combined at-risk union (failure mode 4 in
+    # Chapter 10). Each is populated below when its analysis runs, so
+    # they stay empty when the homepage or sitemap inputs are absent.
+    unreachable: list[str] = []
+    sitemap_only: list[str] = []
 
     # Orphans by graph definition, nodes with zero in-degree.
     orphans_zero_inbound = sorted(
@@ -303,6 +327,16 @@ def analyze(
             "in_graph_only_count": len(graph_only),
             "in_graph_only": graph_only[:200],
         }
+
+    # Combined at-risk union (Chapter 10, failure mode 4). A page is at
+    # risk if it has no inbound internal links, is unreachable from the
+    # homepage, or exists in the sitemap but not the crawl graph. The
+    # union deduplicates pages that fall into more than one category.
+    total_at_risk = sorted(
+        set(orphans_zero_inbound) | set(unreachable) | set(sitemap_only)
+    )
+    report["total_at_risk_count"] = len(total_at_risk)
+    report["total_at_risk"] = total_at_risk[:200]
 
     # Optional PageRank computation.
     if compute_pagerank:
