@@ -103,36 +103,45 @@ while IFS= read -r page_url || [ -n "$page_url" ]; do
     case "$page_url" in ""|\#*) continue ;; esac
     checked_pages=$((checked_pages + 1))
 
-    html=$(curl -sSL -A "$USER_AGENT" "$page_url" || true)
+    html=$(curl -sSL --connect-timeout 10 --max-time 30 \
+        -A "$USER_AGENT" "$page_url" || true)
     if [ -z "$html" ]; then
         echo "FAIL: $page_url could not be fetched"
         errors=$((errors + 1))
         continue
     fi
 
-    # Extract every href value, then keep only same-host links
-    # (relative paths and absolute URLs on the configured base host).
+    # Extract every href value, then keep only same-host links:
+    # relative paths (/foo), protocol-relative URLs (//host/foo), and
+    # absolute URLs (https://host/foo) on the configured base host.
     links=$(printf '%s' "$html" \
         | extract_hrefs \
-        | grep -E "^(/[^/]|https?://(www\.)?${BASE_HOST}/)" \
+        | grep -E "^(/[^/]|//(www\.)?${BASE_HOST}/|https?://(www\.)?${BASE_HOST}/)" \
         | sort -u || true)
 
-    for link in $links; do
+    # Iterate line-by-line rather than with word splitting so a href
+    # containing whitespace cannot break the loop.
+    while IFS= read -r link; do
+        [ -z "$link" ] && continue
+
         # Normalize to an absolute URL before requesting.
-        if [ "${link:0:1}" = "/" ]; then
-            full_url="${BASE_URL}${link}"
-        else
-            full_url="$link"
-        fi
+        case "$link" in
+            //*) full_url="https:${link}" ;;       # protocol-relative
+            /*)  full_url="${BASE_URL}${link}" ;;   # root-relative path
+            *)   full_url="$link" ;;                # already absolute
+        esac
 
         checked_links=$((checked_links + 1))
-        status=$(curl -sSL -A "$USER_AGENT" -o /dev/null \
+        status=$(curl -sSL --connect-timeout 10 --max-time 30 \
+            -A "$USER_AGENT" -o /dev/null \
             -w "%{http_code}" "$full_url" || echo "000")
         if [ "$status" != "200" ]; then
             echo "FAIL: $page_url -> $full_url (HTTP $status)"
             errors=$((errors + 1))
         fi
-    done
+    done <<EOF
+$links
+EOF
 done < "$URLS_FILE"
 
 # -----------------------------------------------------------------------------
