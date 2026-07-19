@@ -12,7 +12,9 @@ as non-negotiable.
      pointing to itself.
   3. ISO 639-1 / ISO 3166-1 Alpha-2 code format. Every hreflang value
      must match 'x-default' or a 2-letter language code with an
-     optional 2-letter region code.
+     optional script subtag (e.g. zh-Hant) and an optional region code
+     that is either 2-letter (ISO 3166-1) or 3-digit (UN M.49, e.g.
+     es-419).
   4. x-default presence. Recommended per cluster. Warning by default,
      promotable to error with --require-x-default.
   5. Live URL verification (optional, with --check-urls). Every URL
@@ -54,7 +56,14 @@ USER_AGENT = (
     "+https://github.com/nimajafari/seo-for-engineers)"
 )
 
-HREFLANG_PATTERN = re.compile(r"^(x-default|[a-z]{2}(-[a-z]{2})?)$")
+# x-default, or a 2-letter ISO 639-1 language with an optional 4-letter
+# script subtag (e.g. zh-Hant) and an optional region that is either a
+# 2-letter ISO 3166-1 code or a 3-digit UN M.49 code (e.g. es-419). The
+# hreflang value is lower-cased before matching, so the pattern is all
+# lowercase.
+HREFLANG_PATTERN = re.compile(
+    r"^(x-default|[a-z]{2}(-[a-z]{4})?(-([a-z]{2}|[0-9]{3}))?)$"
+)
 
 
 def fetch_sitemap_content(source: str) -> bytes:
@@ -217,8 +226,9 @@ def validate_language_codes(
                         "rule": "invalid_code_format",
                         "message": (
                             f"{source_url} uses hreflang value '{lang}' which "
-                            "does not match expected format (x-default or "
-                            "language[-region] with 2-letter codes)."
+                            "does not match expected format (x-default, or "
+                            "language[-script][-region], e.g. en, en-us, "
+                            "zh-Hant, es-419)."
                         ),
                     }
                 )
@@ -325,6 +335,19 @@ def validate_live_urls(
                 allow_redirects=False,
                 headers={"User-Agent": USER_AGENT},
             )
+            # Some origins and CDNs reject HEAD (405) or do not implement
+            # it (501). Retry those with a streamed GET so a HEAD-averse
+            # server does not masquerade as a broken hreflang URL. The
+            # body is never read; the connection is closed immediately.
+            if response.status_code in (405, 501):
+                response = requests.get(
+                    url,
+                    timeout=REQUEST_TIMEOUT_SECONDS,
+                    allow_redirects=False,
+                    stream=True,
+                    headers={"User-Agent": USER_AGENT},
+                )
+                response.close()
         except Exception as exc:
             issues.append(
                 {
