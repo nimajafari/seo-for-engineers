@@ -302,8 +302,28 @@ async function main() {
   let targets = [];
 
   if (args.urlsFile) {
-    const content = readFileSync(args.urlsFile, 'utf-8');
-    targets = JSON.parse(content);
+    let content;
+    try {
+      content = readFileSync(args.urlsFile, 'utf-8');
+    } catch (err) {
+      console.error(`Cannot read --urls file '${args.urlsFile}': ${err.message}`);
+      process.exit(2);
+    }
+    try {
+      targets = JSON.parse(content);
+    } catch (err) {
+      console.error(
+        `--urls file '${args.urlsFile}' is not valid JSON: ${err.message}`
+      );
+      process.exit(2);
+    }
+    if (!Array.isArray(targets)) {
+      console.error(
+        `--urls file '${args.urlsFile}' must contain a JSON array of ` +
+          `{ "url": ..., "locale": ... } objects.`
+      );
+      process.exit(2);
+    }
   } else if (args.url) {
     targets = [{ url: args.url, locale: args.locale || null }];
   } else {
