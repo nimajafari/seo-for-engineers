@@ -122,3 +122,56 @@ def test_main_returns_two_when_all_sources_fail(monkeypatch, capsys):
     monkeypatch.setattr(mod, "fetch_ranges", always_fail)
     assert mod.main() == 2
     assert "indeterminate" in capsys.readouterr().err
+
+
+def test_main_partial_fetch_failure_without_match_is_indeterminate(monkeypatch, capsys):
+    """A list that failed to download might have held the IP, so a miss
+    against the remaining lists is indeterminate (2), not 'not Googlebot'."""
+
+    def fetch(url, ctx):
+        if url == mod.SPECIAL_CRAWLERS_URL:
+            raise RuntimeError("timeout")
+        return ["66.249.64.0/19"]
+
+    monkeypatch.setattr(sys, "argv", ["verify-googlebot-ip.py", "203.0.113.5"])
+    monkeypatch.setattr(mod, "fetch_ranges", fetch)
+    assert mod.main() == 2
+    assert "special-crawlers" in capsys.readouterr().err
+
+
+def test_main_rejects_malformed_ip_without_traceback(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["verify-googlebot-ip.py", "not-an-ip"])
+    monkeypatch.setattr(mod, "fetch_ranges", lambda url, ctx: pytest.fail("fetched"))
+    with pytest.raises(SystemExit) as exc:
+        mod.main()
+    assert exc.value.code == 2
+    assert "not a valid IP address" in capsys.readouterr().err
+
+
+def test_main_matches_ipv4_mapped_ipv6(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["verify-googlebot-ip.py", "::ffff:66.249.66.1"])
+    monkeypatch.setattr(mod, "fetch_ranges", lambda url, ctx: ["66.249.64.0/19"])
+    assert mod.main() == 0
+
+
+# parse_ip / sources -----------------------------------------------------
+
+def test_parse_ip_unwraps_ipv4_mapped():
+    assert str(mod.parse_ip("::ffff:66.249.66.1")) == "66.249.66.1"
+
+
+def test_parse_ip_keeps_native_ipv6():
+    assert str(mod.parse_ip("2001:4860:4801:10::1")) == "2001:4860:4801:10::1"
+
+
+def test_ip_in_ranges_ipv4_mapped_match():
+    assert mod.ip_in_ranges("::ffff:66.249.66.1", ["66.249.64.0/19"]) is True
+
+
+def test_sources_are_distinct_current_lists():
+    # The legacy googlebot.json URL redirects to common-crawlers.json;
+    # listing both would check one list twice and miss special crawlers.
+    urls = list(mod.SOURCES.values())
+    assert len(set(urls)) == len(urls)
+    assert all("/static/crawling/ipranges/" in u for u in urls)
+    assert set(mod.SOURCES) == {"common-crawlers", "special-crawlers"}
