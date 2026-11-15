@@ -13,11 +13,20 @@ on a schedule rather than calling the endpoints on every request.
 Usage:
     python verify-googlebot-ip.py <ip>
 
+Range lists checked:
+    common-crawlers   Googlebot and the other crawlers that obey robots.txt
+                      (the old googlebot.json URL now redirects here)
+    special-crawlers  crawlers such as AdsBot that may ignore robots.txt
+
+User-triggered fetchers (user-triggered-fetchers*.json) are deliberately
+not checked: they act on behalf of a user, not as crawlers.
+
 Exit codes:
     0  the IP is in a published Google crawler range
-    1  the IP is not in any published range (range lists were fetched)
-    2  no range list could be fetched, so the result is indeterminate
-       (a transient network failure must not be read as "not Googlebot")
+    1  the IP is not in any published range (every range list was fetched)
+    2  indeterminate: a range list could not be fetched and none of the
+       lists that were fetched matched (a transient network failure must
+       not be read as "not Googlebot"), or the argument is not a valid IP
 
 macOS note: if you see "SSL: CERTIFICATE_VERIFY_FAILED", the Python.org
 installer does not register with the system trust store. Fix with either:
@@ -43,16 +52,19 @@ import ssl
 import sys
 import urllib.request
 
-GOOGLEBOT_RANGES_URL = (
-    "https://developers.google.com/static/search/apis/ipranges/googlebot.json"
-)
+# Google moved these files under /static/crawling/ipranges/. The old
+# /static/search/apis/ipranges/googlebot.json URL now 301-redirects to
+# common-crawlers.json, so listing both would fetch the same list twice.
 COMMON_CRAWLERS_URL = (
     "https://developers.google.com/static/crawling/ipranges/common-crawlers.json"
 )
+SPECIAL_CRAWLERS_URL = (
+    "https://developers.google.com/static/crawling/ipranges/special-crawlers.json"
+)
 
 SOURCES = {
-    "googlebot": GOOGLEBOT_RANGES_URL,
     "common-crawlers": COMMON_CRAWLERS_URL,
+    "special-crawlers": SPECIAL_CRAWLERS_URL,
 }
 
 
@@ -80,41 +92,67 @@ def fetch_ranges(url: str, context: ssl.SSLContext) -> list[str]:
     ]
 
 
+def parse_ip(value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    """Parse an IP address, unwrapping IPv4-mapped IPv6 (::ffff:a.b.c.d).
+
+    Dual-stack servers often log IPv4 clients in the mapped form. Google
+    publishes those ranges as plain IPv4 prefixes, and an IPv6 address is
+    never "in" an IPv4 network, so without unwrapping a genuine Googlebot
+    hit would be reported as not Googlebot.
+    """
+    addr = ipaddress.ip_address(value.strip())
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
+        return addr.ipv4_mapped
+    return addr
+
+
 def ip_in_ranges(ip: str, ranges: list[str]) -> bool:
     """Return True if the IP falls inside any of the CIDR ranges."""
-    target = ipaddress.ip_address(ip)
+    target = parse_ip(ip)
     for cidr in ranges:
         if cidr and target in ipaddress.ip_network(cidr):
             return True
     return False
 
 
+def ip_argument(value: str) -> str:
+    """argparse type: reject a malformed IP with a usage error, not a traceback."""
+    try:
+        parse_ip(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a valid IP address: {value!r}")
+    return value.strip()
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("ip", help="IP address to check")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("ip", type=ip_argument, help="IP address to check")
     args = parser.parse_args()
 
     context = build_ssl_context()
 
-    fetched_any = False
+    failed: list[str] = []
     for name, url in SOURCES.items():
         try:
             ranges = fetch_ranges(url, context)
         except Exception as exc:
             print(f"Could not fetch {name} ranges: {exc}", file=sys.stderr)
+            failed.append(name)
             continue
-        fetched_any = True
         if ip_in_ranges(args.ip, ranges):
             print(f"OK, {args.ip} is in the {name} range list")
             return 0
 
-    # If no source could be fetched, the IP is unverified, not confirmed
-    # absent. Returning a distinct code keeps a transient outage from
-    # being misread as "this IP is not Googlebot" by a calling gate.
-    if not fetched_any:
+    # A list that could not be fetched might have contained the IP, so a
+    # miss is only conclusive when every list was checked. Returning a
+    # distinct code keeps a transient outage from being misread as "this
+    # IP is not Googlebot" by a calling gate.
+    if failed:
         print(
-            f"Could not fetch any Google crawler range list; "
-            f"verification of {args.ip} is indeterminate",
+            f"Could not fetch {', '.join(failed)} range list(s) and no other "
+            f"list matched; verification of {args.ip} is indeterminate",
             file=sys.stderr,
         )
         return 2

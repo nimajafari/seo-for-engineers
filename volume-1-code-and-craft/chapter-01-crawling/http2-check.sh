@@ -9,7 +9,10 @@
 # Usage:
 #   ./http2-check.sh https://example.com
 #
-# Exits 0 if HTTP/2 is supported, 1 otherwise.
+# Exit codes:
+#   0  the origin negotiated HTTP/2
+#   1  the origin answered over another protocol (usually HTTP/1.1)
+#   2  the request failed (DNS, connection, TLS), so nothing was learned
 #
 # Reference: SEO for Engineers, Volume 1, Chapter 1.
 #
@@ -23,10 +26,16 @@ fi
 
 URL="$1"
 
-PROTO=$(curl -sI --http2 "$URL" | head -1 | awk '{print $1}')
-echo "Protocol: $PROTO"
+# Ask curl for the negotiated version directly. Parsing the first header
+# line through `head -1` races curl under pipefail (SIGPIPE on the
+# remaining headers), and a failed request would exit silently.
+if ! VERSION=$(curl -sS -o /dev/null -I --http2 -w '%{http_version}' "$URL"); then
+  echo "Request to $URL failed; protocol unknown" >&2
+  exit 2
+fi
+echo "Protocol: HTTP/$VERSION"
 
-if [[ "$PROTO" == HTTP/2* ]]; then
+if [[ "$VERSION" == 2* ]]; then
   echo "OK, HTTP/2 supported"
   exit 0
 else
