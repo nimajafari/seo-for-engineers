@@ -1,10 +1,13 @@
 # SEO for Engineers
 
-This repository is the operational complement to *SEO for Engineers* by
-Nima Jafari. Every code block in the book that is worth running
+This repository is the operational complement to
+[*SEO for Engineers*](https://www.amazon.ca/SEO-Engineers-comprehensive-engineering-responsible-ebook/dp/B0HHT6QBQG)
+by Nima Jafari. Every code block in the book that is worth running
 in production has a tested, packaged version in this repository. The
 chapter directories follow the book's structure; the code does the work
 the chapters argue should be done.
+
+**Get the book:** [*SEO for Engineers* on Amazon](https://www.amazon.ca/SEO-Engineers-comprehensive-engineering-responsible-ebook/dp/B0HHT6QBQG)
 
 ## Status
 
