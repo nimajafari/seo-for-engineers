@@ -12,6 +12,10 @@
 //   4. Watch the console. The first [DOM] line prints immediately. The
 //      second [DOM] line prints five seconds later.
 //
+// Sizes are UTF-8 bytes of the serialized body. innerHTML.length would
+// count UTF-16 code units instead, which undercounts every non-ASCII
+// character (an accented letter is 2 bytes, most CJK characters 3).
+//
 // Note. Do not reload after pasting. A reload replaces the document and
 // detaches anything you set up in the console, so the second sample
 // would never run. Paste against the already-loaded page instead.
@@ -19,7 +23,9 @@
 // Reference: SEO for Engineers, Volume 1, Chapter 2.
 
 (() => {
-  const sample = () => (document.body ? document.body.innerHTML.length : 0);
+  const encoder = new TextEncoder();
+  const sample = () =>
+    document.body ? encoder.encode(document.body.innerHTML).length : 0;
   const t0 = sample();
   console.log(`[DOM] At paste time: ${t0} bytes`);
   setTimeout(() => {
