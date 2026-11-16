@@ -52,6 +52,7 @@ TS_CHAPTERS := \
 # install step, since the suites import only node:test/node:assert and a
 # sibling module.
 JS_CHAPTERS := \
+  chapter-02-rendering \
   chapter-05-javascript-rendering \
   chapter-06-core-web-vitals \
   chapter-07-semantic-html \
