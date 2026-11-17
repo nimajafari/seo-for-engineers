@@ -7,10 +7,18 @@ described in Chapter 3 of SEO for Engineers, Volume 1.
 
 For each URL the script:
   1. Fetches the page.
-  2. Parses every <link rel="canonical"> element.
-  3. Flags missing tags, multiple tags, relative URLs, canonicals built
-     from the request URL (containing tracking parameters), cross-host
-     canonicals, and self-canonical mismatches.
+  2. Collects canonicals from <link rel="canonical"> elements and from
+     the HTTP Link header (Google honors both).
+  3. Flags missing canonicals, canonical links outside <head> (ignored
+     by Google), multiple or conflicting canonicals, relative URLs,
+     canonicals built from the request URL (containing tracking
+     parameters), cross-host canonicals, and self-canonical mismatches.
+
+The HTML is parsed with html5lib, which builds the same tree a browser
+(and Google) does. That matters for <head>: an element that is not
+allowed there, such as an <img> or a <div> injected by a tag manager,
+implicitly closes <head>, and every <link rel="canonical"> after it lands
+in <body>, where Google ignores it.
 
 Usage:
     python canonical-audit.py https://example.com/page
@@ -31,7 +39,16 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
+import re
+from urllib.parse import (
+    parse_qsl,
+    quote,
+    unquote,
+    urlencode,
+    urljoin,
+    urlparse,
+    urlunparse,
+)
 
 import requests
 from bs4 import BeautifulSoup
@@ -82,6 +99,8 @@ class CanonicalAuditResult:
     status_code: int | None = None
     canonical_count: int = 0
     canonical_href: str | None = None
+    canonical_resolved: str | None = None
+    canonical_source: str | None = None
     issues: list[str] = field(default_factory=list)
     error: str | None = None
 
@@ -98,15 +117,50 @@ def is_tracking_parameter(name: str) -> bool:
     return any(lower.startswith(prefix) for prefix in TRACKING_PARAMETER_PREFIXES)
 
 
+DEFAULT_PORTS = {"http": 80, "https": 443}
+
+# Characters left unescaped when re-encoding a path: RFC 3986 sub-delims
+# plus ":", "@" and "/". Everything else is percent-encoded, so /café and
+# /caf%C3%A9 normalize to the same string.
+_PATH_SAFE = "/:@!$&'()*+,;="
+
+
+def _normalize_netloc(parsed) -> str:
+    """Lowercase and IDNA-encode the host, drop the default port."""
+    host = (parsed.hostname or "").rstrip(".")
+    try:
+        host = host.encode("idna").decode("ascii")
+    except UnicodeError:
+        pass  # Leave hosts the idna codec rejects as they are.
+    if ":" in host:  # IPv6 literal
+        host = f"[{host}]"
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    if port is not None and port != DEFAULT_PORTS.get(parsed.scheme.lower()):
+        host = f"{host}:{port}"
+    return host.lower()
+
+
 def normalize_url(url: str) -> str:
-    """Lowercase the scheme and host, strip a trailing slash on the path."""
+    """Reduce a URL to a comparison form.
+
+    Lowercases the scheme, lowercases and IDNA-encodes the host, drops a
+    default port, percent-encodes the path consistently, treats an empty
+    path as "/", strips a trailing slash from non-root paths, and drops
+    the fragment. Without these, a page fetched as https://example.com/
+    with canonical https://example.com, or a /café page whose final URL
+    is /caf%C3%A9, would be reported as not self-canonical.
+    """
     parsed = urlparse(url)
     scheme = parsed.scheme.lower()
-    host = parsed.netloc.lower()
-    path = parsed.path
+    path = quote(unquote(parsed.path), safe=_PATH_SAFE) or "/"
     if path.endswith("/") and len(path) > 1:
-        path = path.rstrip("/")
-    return urlunparse((scheme, host, path, parsed.params, parsed.query, ""))
+        path = path.rstrip("/") or "/"
+    return urlunparse(
+        (scheme, _normalize_netloc(parsed), path, parsed.params, parsed.query, "")
+    )
 
 
 def find_tracking_params_in_url(url: str) -> list[str]:
@@ -135,6 +189,54 @@ def strip_tracking_params(url: str) -> str:
     )
 
 
+def header_charset(content_type: str | None) -> str | None:
+    """Return the charset parameter of a Content-Type header, if any."""
+    if not content_type:
+        return None
+    match = re.search(r"charset\s*=\s*[\"']?([\w.:-]+)", content_type, re.I)
+    return match.group(1) if match else None
+
+
+def _rel_values(link) -> list[str]:
+    rel = link.get("rel") or []
+    if isinstance(rel, str):
+        rel = rel.split()
+    return [value.lower() for value in rel]
+
+
+def find_html_canonicals(soup: BeautifulSoup) -> tuple[list[str], int]:
+    """Return (hrefs of canonical links inside <head>, count outside it)."""
+    in_head: list[str] = []
+    outside = 0
+    for link in soup.find_all("link"):
+        if "canonical" not in _rel_values(link):
+            continue
+        if link.find_parent("head") is not None:
+            in_head.append((link.get("href") or "").strip())
+        else:
+            outside += 1
+    return in_head, outside
+
+
+def find_header_canonicals(link_header: str | None) -> list[str]:
+    """Return canonical targets from an HTTP Link header."""
+    if not link_header:
+        return []
+    return [
+        link.get("url", "").strip()
+        for link in requests.utils.parse_header_links(link_header)
+        if "canonical" in link.get("rel", "").lower().split()
+    ]
+
+
+def document_base(soup: BeautifulSoup, page_url: str) -> str:
+    """Return the base URL for resolving relative hrefs (<base href> wins)."""
+    base = soup.find("base", href=True)
+    if base is not None and soup.head is not None and base.find_parent("head"):
+        return urljoin(page_url, base["href"].strip())
+    return page_url
+
+
 def audit_url(url: str) -> CanonicalAuditResult:
     """Audit a single URL and return the result."""
     result = CanonicalAuditResult(url=url)
@@ -157,30 +259,68 @@ def audit_url(url: str) -> CanonicalAuditResult:
         result.issues.append(f"non-success status {response.status_code}")
         return result
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    canonical_links = soup.find_all("link", rel=lambda r: r and "canonical" in r)
-    result.canonical_count = len(canonical_links)
+    final_url = response.url
+    # Parse bytes, not response.text: requests decodes text/html without a
+    # charset as ISO-8859-1, garbling non-ASCII canonical URLs.
+    soup = BeautifulSoup(
+        response.content,
+        "html5lib",
+        from_encoding=header_charset(response.headers.get("Content-Type")),
+    )
+    html_hrefs, outside_head = find_html_canonicals(soup)
+    header_hrefs = find_header_canonicals(response.headers.get("Link"))
+    result.canonical_count = len(html_hrefs) + len(header_hrefs)
+
+    if outside_head:
+        result.issues.append(
+            f"canonical link outside <head> ({outside_head}), ignored by "
+            "Google; an element not allowed in <head> may be closing it early"
+        )
 
     if result.canonical_count == 0:
-        result.issues.append("missing canonical tag")
+        result.issues.append("missing canonical (no <link> in <head>, no Link header)")
         return result
 
-    if result.canonical_count > 1:
-        result.issues.append(f"multiple canonical tags ({result.canonical_count})")
+    base_url = document_base(soup, final_url)
+    candidates = [(h, "html", base_url) for h in html_hrefs] + [
+        (h, "header", final_url) for h in header_hrefs
+    ]
+    resolved_targets = {
+        normalize_url(urljoin(base, href)) for href, _, base in candidates if href
+    }
+    if len(resolved_targets) > 1:
+        result.issues.append(
+            f"conflicting canonicals ({len(resolved_targets)} different targets); "
+            "Google may ignore all of them"
+        )
+    elif result.canonical_count > 1:
+        result.issues.append(
+            f"multiple canonicals ({result.canonical_count}) with the same target"
+        )
 
-    canonical_href = canonical_links[0].get("href") or ""
-    canonical_href = canonical_href.strip()
+    canonical_href, source, base = candidates[0]
     result.canonical_href = canonical_href
+    result.canonical_source = source
 
     if not canonical_href:
         result.issues.append("canonical href is empty")
         return result
 
-    parsed_canonical = urlparse(canonical_href)
-    if not parsed_canonical.scheme or not parsed_canonical.netloc:
-        result.issues.append("canonical href is not absolute")
+    resolved = urljoin(base, canonical_href)
+    result.canonical_resolved = resolved
+    parsed_canonical = urlparse(resolved)
 
-    tracking_in_canonical = find_tracking_params_in_url(canonical_href)
+    if not urlparse(canonical_href).scheme or not urlparse(canonical_href).netloc:
+        result.issues.append(
+            f"canonical href is relative (resolves to {resolved}); Google "
+            "supports this but recommends absolute URLs"
+        )
+
+    if parsed_canonical.scheme.lower() not in ("http", "https"):
+        result.issues.append(f"canonical is not an http(s) URL ({resolved})")
+        return result
+
+    tracking_in_canonical = find_tracking_params_in_url(resolved)
     if tracking_in_canonical:
         result.issues.append(
             "canonical contains tracking parameters: "
@@ -189,27 +329,19 @@ def audit_url(url: str) -> CanonicalAuditResult:
 
     # Cross-host canonical, often legitimate for syndicated content but worth
     # surfacing for manual review.
-    final_url = response.url
     parsed_page = urlparse(final_url)
-    if (
-        parsed_canonical.netloc
-        and parsed_page.netloc
-        and parsed_canonical.netloc.lower() != parsed_page.netloc.lower()
-    ):
+    if _normalize_netloc(parsed_canonical) != _normalize_netloc(parsed_page):
         result.issues.append(
             f"canonical points to a different host ({parsed_canonical.netloc})"
         )
 
     # Self-canonical mismatch. Compare the page's resolved URL to the
-    # canonical, after a light normalization that ignores trailing slashes
-    # and scheme/host case. Tracking parameters are stripped from both
-    # sides first: a page reached with ?utm_source=... that canonicalizes
-    # to the clean URL is correct, not a duplicate.
-    if (
-        parsed_canonical.scheme
-        and parsed_canonical.netloc
-        and normalize_url(strip_tracking_params(canonical_href))
-        != normalize_url(strip_tracking_params(final_url))
+    # canonical after normalization (see normalize_url). Tracking
+    # parameters are stripped from both sides first: a page reached with
+    # ?utm_source=... that canonicalizes to the clean URL is correct, not
+    # a duplicate.
+    if normalize_url(strip_tracking_params(resolved)) != normalize_url(
+        strip_tracking_params(final_url)
     ):
         result.issues.append(
             "page URL does not match canonical (page may be a duplicate)"
@@ -241,6 +373,8 @@ def write_csv(results: Iterable[CanonicalAuditResult], path: Path) -> None:
                 "is_clean",
                 "issues",
                 "error",
+                "canonical_resolved",
+                "canonical_source",
             ]
         )
         for r in results:
@@ -253,6 +387,8 @@ def write_csv(results: Iterable[CanonicalAuditResult], path: Path) -> None:
                     "yes" if r.is_clean else "no",
                     "; ".join(r.issues),
                     r.error or "",
+                    r.canonical_resolved or "",
+                    r.canonical_source or "",
                 ]
             )
 
@@ -277,7 +413,14 @@ def main() -> int:
 
     urls: list[str]
     if args.urls:
-        urls = load_urls(Path(args.urls))
+        try:
+            urls = load_urls(Path(args.urls))
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"Could not read --urls file {args.urls}: {exc}", file=sys.stderr)
+            return 2
+        if not urls:
+            print(f"No URLs found in {args.urls}.", file=sys.stderr)
+            return 2
     elif args.url:
         urls = [args.url]
     else:
