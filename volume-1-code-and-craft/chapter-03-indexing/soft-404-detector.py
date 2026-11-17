@@ -8,10 +8,18 @@ SEO for Engineers, Volume 1.
 A soft 404 is a page that returns HTTP 200 but contains content that
 indicates the page does not exist or has no meaningful content. Google
 classifies these via content analysis. This script approximates that
-classification with two simple signals.
+classification with three signals; any one of them makes a URL a
+suspect, and the `signals` field says which fired.
 
-  1. The visible word count is below a configurable threshold.
-  2. The visible text contains one of a list of characteristic phrases.
+  1. thin_content       The visible word count is below a threshold.
+  2. error_phrase       The visible text contains a characteristic phrase.
+  3. redirected_to_root A non-root URL redirected to the site's home page,
+                        the classic way removed pages get "handled"; Google
+                        treats such redirects as soft 404s.
+
+A URL with two or more signals is a stronger candidate than one with a
+single signal (a long page that merely mentions "out of stock" trips
+error_phrase alone).
 
 Output is a list of URLs that match the signature, intended as a
 starting point for manual review. The script makes no claim about
@@ -34,9 +42,11 @@ import argparse
 import csv
 import json
 import sys
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -51,8 +61,10 @@ GOOGLEBOT_UA = (
 REQUEST_TIMEOUT_SECONDS = 20
 DEFAULT_MIN_WORDS = 50
 
-# Phrases that, in combination with a low word count and a 200 status,
-# suggest a soft 404. Matching is case-insensitive and substring-based.
+# Phrases that suggest a 200 response is really an error or empty page.
+# Each match is one signal on its own (see the module docstring), so the
+# list favors recall; review suspects by their signal count. Matching is
+# case-insensitive and substring-based.
 DEFAULT_SOFT_404_PHRASES = (
     "no results found",
     "no products found",
@@ -86,23 +98,62 @@ class SoftFourOhFourResult:
     url: str
     fetched: bool = False
     status_code: int | None = None
+    final_url: str | None = None
     word_count: int = 0
     matched_phrases: list[str] = field(default_factory=list)
+    signals: list[str] = field(default_factory=list)
     is_suspect: bool = False
     error: str | None = None
 
 
-def extract_visible_text(html: str) -> str:
-    """Return the visible text content of an HTML document, stripped."""
-    soup = BeautifulSoup(html, "html.parser")
+def header_charset(content_type: str | None) -> str | None:
+    """Return the charset parameter of a Content-Type header, if any."""
+    if not content_type:
+        return None
+    match = re.search(r"charset\s*=\s*[\"']?([\w.:-]+)", content_type, re.I)
+    return match.group(1) if match else None
+
+
+def extract_visible_text(html: bytes | str, content_type: str | None = None) -> str:
+    """Return the visible text content of an HTML document, stripped.
+
+    Pass the raw response bytes: BeautifulSoup then honors the header
+    charset or <meta charset>, whereas requests' response.text falls back
+    to ISO-8859-1 for text/html without a charset and garbles UTF-8 pages.
+    """
+    if isinstance(html, bytes):
+        soup = BeautifulSoup(
+            html, "html.parser", from_encoding=header_charset(content_type)
+        )
+    else:
+        soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "noscript", "template"]):
         tag.decompose()
     return soup.get_text(separator=" ", strip=True)
 
 
+# Han ideographs and Japanese kana are written without spaces, so a
+# whitespace split counts a whole sentence as one word and flags every
+# Chinese or Japanese page as thin. Count each such character as a word.
+_UNSPACED = (
+    "\u3040-\u30ff\u31f0-\u31ff\u3400-\u4dbf\u4e00-\u9fff"
+    "\uf900-\ufaff\uff66-\uff9f"
+)
+_WORD_RE = re.compile(rf"[{_UNSPACED}]|[^\s{_UNSPACED}]+")
+
+
 def count_words(text: str) -> int:
-    """Return a whitespace word count over the visible text."""
-    return len(text.split())
+    """Return a word count over the visible text (Han/kana per character)."""
+    return len(_WORD_RE.findall(text))
+
+
+def redirected_to_root(requested_url: str, final_url: str, redirected: bool) -> bool:
+    """True when a non-root URL ended, via redirects, on a site's home page."""
+    if not redirected:
+        return False
+    requested_path = urlparse(requested_url).path or "/"
+    final_path = urlparse(final_url).path or "/"
+    return requested_path != "/" and final_path == "/"
 
 
 def find_matching_phrases(text: str, phrases: Iterable[str]) -> list[str]:
@@ -136,18 +187,24 @@ def detect(
 
     result.fetched = True
     result.status_code = response.status_code
+    result.final_url = response.url
 
     # A real 4xx or 5xx is not a soft 404. The whole point of a soft 404
     # is a 200 that looks like an error.
     if response.status_code != 200:
         return result
 
-    text = extract_visible_text(response.text)
+    text = extract_visible_text(response.content, response.headers.get("Content-Type"))
     result.word_count = count_words(text)
     result.matched_phrases = find_matching_phrases(text, phrases)
 
-    if result.word_count < min_words or result.matched_phrases:
-        result.is_suspect = True
+    if result.word_count < min_words:
+        result.signals.append("thin_content")
+    if result.matched_phrases:
+        result.signals.append("error_phrase")
+    if redirected_to_root(url, response.url, bool(response.history)):
+        result.signals.append("redirected_to_root")
+    result.is_suspect = bool(result.signals)
 
     return result
 
@@ -186,6 +243,8 @@ def write_csv(results: Iterable[SoftFourOhFourResult], path: Path) -> None:
                 "matched_phrases",
                 "is_suspect",
                 "error",
+                "signals",
+                "final_url",
             ]
         )
         for r in results:
@@ -197,6 +256,8 @@ def write_csv(results: Iterable[SoftFourOhFourResult], path: Path) -> None:
                     "; ".join(r.matched_phrases),
                     "yes" if r.is_suspect else "no",
                     r.error or "",
+                    "; ".join(r.signals),
+                    r.final_url or "",
                 ]
             )
 
@@ -228,11 +289,26 @@ def main() -> int:
         print("--urls requires --csv for batch output.", file=sys.stderr)
         return 2
 
-    phrases = load_phrases(Path(args.phrases) if args.phrases else None)
+    if args.min_words < 0:
+        print("--min-words must be zero or more.", file=sys.stderr)
+        return 2
+
+    try:
+        phrases = load_phrases(Path(args.phrases) if args.phrases else None)
+    except (OSError, UnicodeDecodeError) as exc:
+        print(f"Could not read --phrases file {args.phrases}: {exc}", file=sys.stderr)
+        return 2
 
     urls: list[str]
     if args.urls:
-        urls = load_urls(Path(args.urls))
+        try:
+            urls = load_urls(Path(args.urls))
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"Could not read --urls file {args.urls}: {exc}", file=sys.stderr)
+            return 2
+        if not urls:
+            print(f"No URLs found in {args.urls}.", file=sys.stderr)
+            return 2
     elif args.url:
         urls = [args.url]
     else:
@@ -246,7 +322,8 @@ def main() -> int:
         if args.csv:
             tag = "SUSPECT" if result.is_suspect else "OK"
             extra = (
-                f"words={result.word_count}"
+                (f"signals={','.join(result.signals)} " if result.signals else "")
+                + f"words={result.word_count}"
                 + (
                     " phrases=" + ",".join(result.matched_phrases)
                     if result.matched_phrases
