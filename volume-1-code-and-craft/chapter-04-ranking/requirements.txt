@@ -4,3 +4,4 @@ networkx>=3.3
 # networkx 3.x implements pagerank on top of scipy; without it
 # nx.pagerank raises ModuleNotFoundError at runtime.
 scipy>=1.11
+pytest>=8.0
