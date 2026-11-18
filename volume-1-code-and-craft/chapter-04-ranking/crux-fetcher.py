@@ -87,6 +87,11 @@ def origin_of(url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
+def redact(text: str, secret: str) -> str:
+    """Remove the API key from text that may be printed or written to CSV."""
+    return text.replace(secret, "<redacted>") if secret else text
+
+
 def query_crux(
     api_key: str,
     target: str,
@@ -103,12 +108,17 @@ def query_crux(
     if form_factor:
         body["formFactor"] = form_factor
 
+    # The key travels in the X-Goog-Api-Key header, not the ?key= query
+    # parameter: requests puts the full request URL into connection-error
+    # messages, which this script prints and writes to the CSV.
+    headers = {"X-Goog-Api-Key": api_key}
+
     response = None
     for attempt in range(MAX_RETRIES + 1):
         try:
             response = requests.post(
                 CRUX_ENDPOINT,
-                params={"key": api_key},
+                headers=headers,
                 json=body,
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
@@ -117,7 +127,7 @@ def query_crux(
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_BACKOFF_BASE_SECONDS * (2**attempt))
                 continue
-            return False, None, f"request failed: {exc}"
+            return False, None, redact(f"request failed: {exc}", api_key)
 
         if response.status_code in RETRYABLE_STATUS and attempt < MAX_RETRIES:
             # Honor Retry-After when the server sends a plain seconds value,
@@ -142,7 +152,7 @@ def query_crux(
             err = response.json().get("error", {}).get("message", response.text)
         except Exception:
             err = response.text
-        return False, None, f"HTTP {response.status_code}: {err}"
+        return False, None, redact(f"HTTP {response.status_code}: {err}", api_key)
 
     try:
         payload = response.json()
@@ -195,22 +205,40 @@ def extract_collection_period_end(record: dict[str, Any]) -> str | None:
         return None
 
 
+QueryOutcome = tuple[bool, "dict[str, Any] | None", "str | None"]
+
+
 def fetch_one(
     api_key: str,
     url: str,
     form_factor: str | None,
     as_origin: bool,
+    cache: dict[str, QueryOutcome] | None = None,
 ) -> CruxResult:
-    """Fetch CrUX data for a single URL."""
-    target = origin_of(url) if as_origin else url
-    result = CruxResult(url=url, form_factor=form_factor or "ALL_FORM_FACTORS")
+    """Fetch CrUX data for a single URL.
 
-    has_data, record, error = query_crux(
-        api_key=api_key,
-        target=target,
-        form_factor=form_factor,
-        as_origin=as_origin,
-    )
+    Pass a shared cache dict in batch runs: with --origin every URL on
+    the same origin maps to one query, and without the cache each would
+    spend a request against the per-minute quota for identical data.
+    """
+    result = CruxResult(url=url, form_factor=form_factor or "ALL_FORM_FACTORS")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        result.error = "not an absolute http(s) URL"
+        return result
+
+    target = origin_of(url) if as_origin else url
+    if cache is not None and target in cache:
+        has_data, record, error = cache[target]
+    else:
+        has_data, record, error = query_crux(
+            api_key=api_key,
+            target=target,
+            form_factor=form_factor,
+            as_origin=as_origin,
+        )
+        if cache is not None:
+            cache[target] = (has_data, record, error)
 
     if error:
         result.error = error
@@ -306,7 +334,14 @@ def main() -> int:
 
     urls: list[str]
     if args.urls:
-        urls = load_urls(Path(args.urls))
+        try:
+            urls = load_urls(Path(args.urls))
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"Could not read --urls file {args.urls}: {exc}", file=sys.stderr)
+            return 2
+        if not urls:
+            print(f"No URLs found in {args.urls}.", file=sys.stderr)
+            return 2
     elif args.url:
         urls = [args.url]
     else:
@@ -314,12 +349,14 @@ def main() -> int:
         return 2
 
     results: list[CruxResult] = []
+    cache: dict[str, QueryOutcome] = {}
     for url in urls:
         result = fetch_one(
             api_key=api_key,
             url=url,
             form_factor=args.form_factor,
             as_origin=args.origin,
+            cache=cache,
         )
         results.append(result)
         if args.csv:
