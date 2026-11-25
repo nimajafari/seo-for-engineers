@@ -5,18 +5,28 @@ speculation-rules-validator.py
 Validate a Speculation Rules JSON configuration against the risky
 patterns described in Chapter 5 of SEO for Engineers, Volume 1.
 
-The script can either fetch the rules from a live URL (parsing the
-first <script type="speculationrules"> element in the response) or
-read a local JSON file.
+The script can either fetch the rules from a live URL or read a local
+JSON file. For a URL it collects every source the browser would use:
+all <script type="speculationrules"> elements and every JSON file named
+in a Speculation-Rules response header (CDN features such as
+Cloudflare's Speed Brain deliver rules that way), and merges them.
+
+Patterns under a "not" clause are exclusions, not targets: a rule that
+prerenders "/*" except "/logout" is the safe, recommended shape and is
+not flagged for /logout.
 
 It flags:
   - eagerness: immediate paired with broad where patterns
   - eagerness: immediate paired with selector matches
+  - an invalid eagerness value, which makes the browser ignore the rule
   - missing eagerness, which defaults to immediate for `urls` lists
-  - prerender rules pointing at URL patterns that look like one-time
+  - prerender rules targeting URL patterns that look like one-time
     action pages (/checkout/, /confirm/, /unsubscribe/, /logout/,
     /order/*/complete, and similar)
+  - broad prerender rules with no exclusions at all (low severity)
   - cross-origin URLs in rules
+  - rule sources the browser would ignore (invalid JSON, unfetchable
+    Speculation-Rules header files)
 
 Usage:
     python speculation-rules-validator.py --url https://example.com/
@@ -37,7 +47,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -104,18 +114,45 @@ class ValidationReport:
     rules_action_counts: dict[str, int] = field(default_factory=dict)
     findings: list[Finding] = field(default_factory=list)
     page_origin: str | None = None
+    # Problems with the rule sources themselves (a script that is not
+    # valid JSON, a header file that could not be fetched). The browser
+    # skips such a source, so its speculation silently never happens.
+    source_problems: list[str] = field(default_factory=list)
 
     @property
     def has_high_severity(self) -> bool:
         return any(f.severity == "high" for f in self.findings)
 
 
-def fetch_rules_from_url(url: str) -> tuple[dict[str, Any], str]:
-    """Fetch a URL and return the merged speculation rules and origin.
+def merge_rule_document(merged: dict[str, list], parsed: Any) -> None:
+    """Append a parsed rules document's prerender/prefetch lists to merged."""
+    if not isinstance(parsed, dict):
+        raise ValueError("top level is not a JSON object")
+    for action in ("prerender", "prefetch"):
+        rule_list = parsed.get(action)
+        if isinstance(rule_list, list):
+            merged[action].extend(rule_list)
 
-    A page may carry several <script type="speculationrules"> elements;
-    the browser unions them, so the validator merges every script's
-    prerender and prefetch rule lists and validates the combined set.
+
+def header_rule_urls(header_value: str | None, page_url: str) -> list[str]:
+    """Return the JSON URLs named in a Speculation-Rules response header.
+
+    The header is a structured-field list of quoted URL strings, resolved
+    relative to the document URL.
+    """
+    if not header_value:
+        return []
+    return [urljoin(page_url, u) for u in re.findall(r'"([^"]*)"', header_value)]
+
+
+def fetch_rules_from_url(url: str) -> tuple[dict[str, Any], str, list[str]]:
+    """Fetch a URL and return (merged rules, page origin, source problems).
+
+    The browser unions every <script type="speculationrules"> element and
+    every rules file named in the Speculation-Rules response header, so
+    the validator merges all of them. A source that does not parse is
+    skipped by the browser rather than fatal, so it is reported as a
+    source problem while the remaining sources are still validated.
     """
     response = requests.get(
         url,
@@ -123,34 +160,52 @@ def fetch_rules_from_url(url: str) -> tuple[dict[str, Any], str]:
         headers={"User-Agent": USER_AGENT},
     )
     response.raise_for_status()
-
-    soup = BeautifulSoup(response.text, "html.parser")
-    scripts = soup.find_all("script", attrs={"type": "speculationrules"})
-    if not scripts:
-        raise ValueError(
-            "no <script type=\"speculationrules\"> element found on the page"
-        )
+    page_url = response.url
 
     merged: dict[str, Any] = {"prerender": [], "prefetch": []}
-    for script in scripts:
-        if not script.string:
-            continue
-        parsed = json.loads(script.string)
-        for action in ("prerender", "prefetch"):
-            rule_list = parsed.get(action)
-            if isinstance(rule_list, list):
-                merged[action].extend(rule_list)
+    problems: list[str] = []
+    sources = 0
+
+    soup = BeautifulSoup(response.content, "html.parser")
+    for i, script in enumerate(
+        soup.find_all("script", attrs={"type": "speculationrules"}), start=1
+    ):
+        sources += 1
+        try:
+            merge_rule_document(merged, json.loads(script.get_text()))
+        except (ValueError, TypeError) as exc:
+            problems.append(f"<script type=speculationrules> #{i} is ignored: {exc}")
+
+    for rules_url in header_rule_urls(response.headers.get("Speculation-Rules"), page_url):
+        sources += 1
+        try:
+            rules_response = requests.get(
+                rules_url,
+                timeout=REQUEST_TIMEOUT_SECONDS,
+                headers={"User-Agent": USER_AGENT},
+            )
+            rules_response.raise_for_status()
+            merge_rule_document(merged, rules_response.json())
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            problems.append(f"Speculation-Rules header file {rules_url} is ignored: {exc}")
+
+    if not sources:
+        raise ValueError(
+            "no <script type=\"speculationrules\"> element and no "
+            "Speculation-Rules header found"
+        )
 
     # Drop empty action buckets so the report only counts what is present.
     merged = {action: rules for action, rules in merged.items() if rules}
-    if not merged:
+    if not merged and not problems:
         raise ValueError(
-            "speculation rules script(s) present but contained no "
+            "speculation rules source(s) present but contained no "
             "prerender or prefetch rules"
         )
 
-    page_origin = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
-    return merged, page_origin
+    parsed_page = urlparse(page_url)
+    page_origin = f"{parsed_page.scheme}://{parsed_page.netloc}"
+    return merged, page_origin, problems
 
 
 def load_rules_from_file(path: Path) -> dict[str, Any]:
@@ -170,41 +225,77 @@ def is_one_time_action(target: str) -> bool:
 
 
 def collect_url_patterns(rule: dict[str, Any]) -> list[str]:
-    """Collect the URL patterns or selectors a rule operates on."""
-    patterns: list[str] = []
+    """Collect the URL patterns or selectors a rule targets.
+
+    Patterns under a "not" clause are exclusions and are not returned;
+    see collect_excluded_patterns.
+    """
+    return _collect(rule)[0]
+
+
+def collect_excluded_patterns(rule: dict[str, Any]) -> list[str]:
+    """Collect the patterns a rule excludes via "not" clauses."""
+    return _collect(rule)[1]
+
+
+def _collect(rule: dict[str, Any]) -> tuple[list[str], list[str]]:
+    targets: list[str] = []
+    excluded: list[str] = []
     if "urls" in rule and isinstance(rule["urls"], list):
-        patterns.extend(str(u) for u in rule["urls"])
+        targets.extend(str(u) for u in rule["urls"])
     where = rule.get("where")
     if isinstance(where, dict):
-        patterns.extend(_extract_where_patterns(where))
-    return patterns
+        _extract_where_patterns(where, targets, excluded)
+    return targets, excluded
 
 
-def _extract_where_patterns(where: dict[str, Any]) -> list[str]:
-    """Recursively extract pattern strings from a where clause."""
-    out: list[str] = []
+def _url_pattern_to_string(value: Any) -> str:
+    """Render an href_matches value (string or URLPattern object) as text.
+
+    href_matches also accepts a URLPattern init object such as
+    {"pathname": "/product/*"}; without this, object patterns were
+    silently skipped by every check.
+    """
+    if not isinstance(value, dict):
+        return str(value)
+    origin = ""
+    if value.get("hostname"):
+        scheme = str(value.get("protocol", "https")).rstrip(":")
+        port = f":{value['port']}" if value.get("port") else ""
+        origin = f"{scheme}://{value['hostname']}{port}"
+    path = str(value.get("pathname", "/*" if origin else "*"))
+    search = f"?{str(value['search']).lstrip('?')}" if value.get("search") else ""
+    return f"{origin}{path}{search}"
+
+
+def _extract_where_patterns(
+    where: dict[str, Any],
+    targets: list[str],
+    excluded: list[str],
+    negated: bool = False,
+) -> None:
+    """Walk a where clause, sorting patterns by polarity.
+
+    Each "not" flips polarity, so not(not(x)) is a target again.
+    """
+    bucket = excluded if negated else targets
     if "href_matches" in where:
         value = where["href_matches"]
-        if isinstance(value, str):
-            out.append(value)
-        elif isinstance(value, list):
-            out.extend(str(v) for v in value)
+        values = value if isinstance(value, list) else [value]
+        bucket.extend(_url_pattern_to_string(v) for v in values)
     if "selector_matches" in where:
         value = where["selector_matches"]
-        if isinstance(value, str):
-            out.append("selector:" + value)
-        elif isinstance(value, list):
-            out.extend("selector:" + str(v) for v in value)
+        values = value if isinstance(value, list) else [value]
+        bucket.extend("selector:" + str(v) for v in values)
     for combinator in ("and", "or"):
         clauses = where.get(combinator)
         if isinstance(clauses, list):
             for clause in clauses:
                 if isinstance(clause, dict):
-                    out.extend(_extract_where_patterns(clause))
+                    _extract_where_patterns(clause, targets, excluded, negated)
     not_clause = where.get("not")
     if isinstance(not_clause, dict):
-        out.extend(_extract_where_patterns(not_clause))
-    return out
+        _extract_where_patterns(not_clause, targets, excluded, not negated)
 
 
 def default_eagerness(rule: dict[str, Any]) -> str:
@@ -316,6 +407,27 @@ def _validate_rule(
                 )
             )
 
+    # A broad prerender rule with no exclusions will also prerender any
+    # matching link to an action page that appears on the page later.
+    if action == "prerender" and not collect_excluded_patterns(rule):
+        broad_targets = [
+            p for p in patterns if not p.startswith("selector:") and pattern_is_broad(p)
+        ]
+        if broad_targets:
+            report.findings.append(
+                Finding(
+                    severity="low",
+                    action=action,
+                    rule_index=index,
+                    message=(
+                        f"broad prerender pattern(s) {broad_targets} with no "
+                        f"exclusions. Add \"not\" clauses for action URLs "
+                        f"(logout, add-to-cart, unsubscribe) so links to them "
+                        f"are never prerendered."
+                    ),
+                )
+            )
+
     # One-time-action URLs should never be in any prerender rule.
     if action == "prerender":
         action_urls = [p for p in patterns if is_one_time_action(p)]
@@ -371,6 +483,12 @@ def print_report(report: ValidationReport) -> None:
         print(f"{action} rules: {count}")
     print()
 
+    if report.source_problems:
+        print(f"IGNORED rule sources ({len(report.source_problems)}):")
+        for problem in report.source_problems:
+            print(f"  {problem}")
+        print()
+
     if not report.findings:
         print("No issues found.")
         return
@@ -398,8 +516,8 @@ def main() -> int:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument(
         "--url",
-        help="Fetch and validate the first <script type='speculationrules'> "
-        "found on this URL.",
+        help="Fetch this URL and validate every <script type='speculationrules'> "
+        "and Speculation-Rules header file on it.",
     )
     source.add_argument(
         "--file",
@@ -407,17 +525,21 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    problems: list[str] = []
     try:
         if args.url:
-            rules, origin = fetch_rules_from_url(args.url)
+            rules, origin, problems = fetch_rules_from_url(args.url)
         else:
             rules = load_rules_from_file(Path(args.file))
             origin = None
+            if not isinstance(rules, dict):
+                raise ValueError("top level of the rules file is not a JSON object")
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
     report = validate(rules, page_origin=origin)
+    report.source_problems = problems
     print_report(report)
 
     # Exit non-zero on any high-severity finding, so the validator can

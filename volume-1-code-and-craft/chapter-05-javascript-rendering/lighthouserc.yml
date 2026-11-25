@@ -17,16 +17,25 @@ ci:
     numberOfRuns: 3
   assert:
     assertions:
+      # Every assertion sets aggregationMethod: median. LHCI's default is
+      # "optimistic", the best value across the runs, so with three runs
+      # a page that is slow two times out of three would still pass.
+      #
       # Performance category is a warn so minor regressions do not
       # block deployments. The individual metric thresholds below are
       # hard errors.
-      'categories:performance': ['warn', { minScore: 0.8 }]
-      'first-contentful-paint': ['error', { maxNumericValue: 2000 }]
-      'largest-contentful-paint': ['error', { maxNumericValue: 2500 }]
-      'cumulative-layout-shift': ['error', { maxNumericValue: 0.1 }]
+      'categories:performance': ['warn', { minScore: 0.8, aggregationMethod: 'median' }]
+      'first-contentful-paint': ['error', { maxNumericValue: 2000, aggregationMethod: 'median' }]
+      'largest-contentful-paint': ['error', { maxNumericValue: 2500, aggregationMethod: 'median' }]
+      'cumulative-layout-shift': ['error', { maxNumericValue: 0.1, aggregationMethod: 'median' }]
       # Total blocking time is a lab proxy for INP. The chapter notes
       # that field data is what Google uses for ranking, but TBT in
       # the lab catches regressions before they reach users.
-      'total-blocking-time': ['error', { maxNumericValue: 200 }]
+      'total-blocking-time': ['error', { maxNumericValue: 200, aggregationMethod: 'median' }]
   upload:
-    target: temporary-public-storage
+    # Reports are written to ./lhci-reports. The common
+    # `target: temporary-public-storage` publishes each report, with
+    # screenshots of the page, at a public URL anyone can open; only
+    # switch to it for pages that are already public.
+    target: filesystem
+    outputDir: ./lhci-reports

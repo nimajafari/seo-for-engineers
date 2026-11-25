@@ -10,7 +10,7 @@
     "lhci": "lhci autorun"
   },
   "devDependencies": {
-    "@playwright/test": "^1.45.0"
+    "@playwright/test": "^1.65.0"
   },
   "engines": {
     "node": ">=18"
