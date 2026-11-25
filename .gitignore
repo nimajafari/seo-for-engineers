@@ -34,3 +34,6 @@ playwright/.cache/
 
 # Book Chapters
 book-chapters/
+
+# Lighthouse CI filesystem reports (chapter 5 lighthouserc.yml)
+lhci-reports/
