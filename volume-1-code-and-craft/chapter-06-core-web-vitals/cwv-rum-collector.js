@@ -1,9 +1,10 @@
 // cwv-rum-collector.js
 //
 // Production-quality RUM collector for Core Web Vitals. Uses the
-// web-vitals attribution build and sends metrics to a beacon endpoint
-// with segmentation by page template, device type, and connection
-// type, as described in Chapter 6 of SEO for Engineers, Volume 1.
+// web-vitals attribution build (v6) and sends metrics to a beacon
+// endpoint with segmentation by page template, device type, and
+// connection type, as described in Chapter 6 of SEO for Engineers,
+// Volume 1.
 //
 // Usage with a bundler (recommended):
 //
@@ -16,7 +17,7 @@
 //     {
 //       "imports": {
 //         "web-vitals/attribution":
-//           "https://cdn.jsdelivr.net/npm/web-vitals@4/dist/web-vitals.attribution.js"
+//           "https://cdn.jsdelivr.net/npm/web-vitals@6/dist/web-vitals.attribution.js"
 //       }
 //     }
 //   </script>
@@ -24,6 +25,20 @@
 //
 // Configure the endpoint by editing ANALYTICS_ENDPOINT below or by
 // setting window.__cwvEndpoint before this script loads.
+//
+// One beacon is sent per metric report. A metric can be reported more
+// than once for the same page view (CLS and INP are reported again if
+// they grow after the page was hidden and shown, and every bfcache
+// restore starts new metric instances). Each beacon therefore carries:
+//
+//   id              unique per metric instance; keep the last value
+//                   per id, or sum `delta` per id, never sum `value`
+//   delta           change since the previous report for this id
+//   navigationType  'navigate', 'reload', 'back-forward',
+//                   'back-forward-cache', 'prerender', 'restore'
+//
+// Beacons are sent as a JSON string with a text/plain content type,
+// which needs no CORS preflight; parse the body as JSON on the server.
 //
 // Reference: SEO for Engineers, Volume 1, Chapter 6.
 
@@ -45,9 +60,18 @@ function getPageTemplate() {
 }
 
 function getDeviceType() {
-  const ua = navigator.userAgent;
-  if (/mobile/i.test(ua)) return 'mobile';
-  if (/tablet|ipad/i.test(ua)) return 'tablet';
+  const ua = navigator.userAgent || '';
+  // Tablets first: iPad and Android tablet user agents also match the
+  // phone patterns below. iPadOS reports a Macintosh user agent, so a
+  // touch-capable "Macintosh" is treated as a tablet.
+  if (
+    /ipad|tablet/i.test(ua) ||
+    (/android/i.test(ua) && !/mobile/i.test(ua)) ||
+    (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1)
+  ) {
+    return 'tablet';
+  }
+  if (navigator.userAgentData?.mobile || /mobi/i.test(ua)) return 'mobile';
   return 'desktop';
 }
 
@@ -58,8 +82,9 @@ function getConnectionType() {
 function send(payload) {
   const body = JSON.stringify(payload);
   try {
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon(ANALYTICS_ENDPOINT, body);
+    // sendBeacon returns false when the browser refuses to queue the
+    // beacon (for example, over its size quota); fall back to fetch.
+    if (navigator.sendBeacon && navigator.sendBeacon(ANALYTICS_ENDPOINT, body)) {
       return;
     }
   } catch {
@@ -70,45 +95,44 @@ function send(payload) {
     method: 'POST',
     body,
     keepalive: true,
-    headers: { 'Content-Type': 'application/json' },
   }).catch(() => {
     // Silent. RUM should never throw into the page.
   });
 }
 
-function commonFields() {
+function commonFields(metric) {
   return {
     url: location.pathname + location.search,
     pageTemplate: getPageTemplate(),
     deviceType: getDeviceType(),
     connectionType: getConnectionType(),
     timestamp: Date.now(),
+    metric: metric.name,
+    id: metric.id,
+    navigationType: metric.navigationType || null,
+    rating: metric.rating,
   };
 }
 
-function elementSelector(el) {
-  // Lightweight selector identification for attribution. Not a full
-  // CSS-path resolver, just enough to identify a recurring element.
-  if (!el) return null;
-  if (typeof el === 'string') return el;
-  const parts = [];
-  parts.push(el.tagName?.toLowerCase());
-  if (el.id) parts.push('#' + el.id);
-  if (el.className && typeof el.className === 'string') {
-    parts.push('.' + el.className.split(/\s+/).slice(0, 3).join('.'));
-  }
-  return parts.filter(Boolean).join('');
+// Milliseconds for timing metrics. CLS is sent as an integer scaled by
+// 1000 (e.g. 0.123 -> 123) so it can be stored alongside other metric
+// values without floating-point precision loss in the analytics
+// backend. Matches the convention used in Chapter 6 of the book.
+function scaled(metric, number) {
+  return Math.round(metric.name === 'CLS' ? number * 1000 : number);
 }
 
-onLCP(({ value, rating, attribution }) => {
+function valueFields(metric) {
+  return { value: scaled(metric, metric.value), delta: scaled(metric, metric.delta) };
+}
+
+onLCP((metric) => {
+  const { attribution } = metric;
   send({
-    ...commonFields(),
-    metric: 'LCP',
-    value: Math.round(value),
-    rating,
+    ...commonFields(metric),
+    ...valueFields(metric),
     lcpUrl: attribution.url || null,
-    lcpElement: elementSelector(attribution.element) ||
-      attribution.element || null,
+    lcpElement: attribution.target || null,
     ttfb: Math.round(attribution.timeToFirstByte || 0),
     resourceLoadDelay: Math.round(attribution.resourceLoadDelay || 0),
     resourceLoadDuration: Math.round(attribution.resourceLoadDuration || 0),
@@ -116,14 +140,12 @@ onLCP(({ value, rating, attribution }) => {
   });
 });
 
-onINP(({ value, rating, attribution }) => {
+onINP((metric) => {
+  const { attribution } = metric;
   send({
-    ...commonFields(),
-    metric: 'INP',
-    value: Math.round(value),
-    rating,
-    interactionTarget: elementSelector(attribution.interactionTarget) ||
-      attribution.interactionTarget || null,
+    ...commonFields(metric),
+    ...valueFields(metric),
+    interactionTarget: attribution.interactionTarget || null,
     interactionType: attribution.interactionType || null,
     inputDelay: Math.round(attribution.inputDelay || 0),
     processingDuration: Math.round(attribution.processingDuration || 0),
@@ -131,39 +153,20 @@ onINP(({ value, rating, attribution }) => {
   });
 });
 
-onCLS(({ value, rating, attribution }) => {
+onCLS((metric) => {
+  const { attribution } = metric;
   send({
-    ...commonFields(),
-    // CLS is sent as an integer scaled by 1000 (e.g. 0.123 -> 123) so it
-    // can be stored alongside other metric values without floating-point
-    // precision loss in the analytics backend. Matches the convention used
-    // in Chapter 6 of the book.
-    metric: 'CLS',
-    value: Math.round(value * 1000),
-    rating,
-    largestShiftTarget:
-      elementSelector(attribution.largestShiftTarget) ||
-      attribution.largestShiftTarget || null,
-    largestShiftValue: attribution.largestShiftValue
-      ? Math.round(attribution.largestShiftValue * 1000)
-      : 0,
+    ...commonFields(metric),
+    ...valueFields(metric),
+    largestShiftTarget: attribution.largestShiftTarget || null,
+    largestShiftValue: scaled(metric, attribution.largestShiftValue || 0),
   });
 });
 
-onFCP(({ value, rating }) => {
-  send({
-    ...commonFields(),
-    metric: 'FCP',
-    value: Math.round(value),
-    rating,
-  });
+onFCP((metric) => {
+  send({ ...commonFields(metric), ...valueFields(metric) });
 });
 
-onTTFB(({ value, rating }) => {
-  send({
-    ...commonFields(),
-    metric: 'TTFB',
-    value: Math.round(value),
-    rating,
-  });
+onTTFB((metric) => {
+  send({ ...commonFields(metric), ...valueFields(metric) });
 });

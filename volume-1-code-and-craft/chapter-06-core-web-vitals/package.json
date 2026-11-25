@@ -10,10 +10,10 @@
     "test": "node --test"
   },
   "dependencies": {
-    "playwright": "^1.45.0",
-    "web-vitals": "^4.2.0"
+    "playwright": "^1.65.0",
+    "web-vitals": "^6.2.3"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }
