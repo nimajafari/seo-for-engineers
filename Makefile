@@ -210,6 +210,12 @@ endef
 
 $(foreach chapter,$(JS_CHAPTERS),$(eval $(call JS_CHAPTER_RULES,$(chapter))))
 
+# Chapters with only JavaScript have no Python test-<chapter> target;
+# alias it to the node checks so `make test CHAPTER=...` works for them.
+JS_ONLY_CHAPTERS := $(filter-out $(PY_CHAPTERS),$(JS_CHAPTERS))
+.PHONY: $(addprefix test-,$(JS_ONLY_CHAPTERS))
+$(foreach chapter,$(JS_ONLY_CHAPTERS),$(eval test-$(chapter): test-js-$(chapter)))
+
 # ----------------------------------------------------------------
 # Per-chapter shell-script targets
 # ----------------------------------------------------------------
