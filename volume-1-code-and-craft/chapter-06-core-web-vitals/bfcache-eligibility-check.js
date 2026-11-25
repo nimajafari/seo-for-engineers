@@ -3,174 +3,302 @@
 // Playwright-based bfcache eligibility checker. Runs two checks for
 // each URL:
 //
-//   1. Passive header check for Cache-Control: no-store, the most
-//      common bfcache blocker that ships in a configuration mistake.
-//   2. Active behavioral test that navigates to the page, navigates
-//      away, navigates back, and reads
-//      performance.getEntriesByType('navigation')[0].notRestoredReasons
-//      to see what Chrome itself reported.
+//   1. Passive header check for Cache-Control: no-store. Chrome
+//      restores a no-store page only if no cookie changed while the
+//      user was away (reason CacheControlNoStoreCookieModified
+//      otherwise), so for most logged-in pages it is still a blocker,
+//      and other browsers may refuse no-store pages outright. A
+//      no-store page is never reported as eligible.
+//   2. Active behavioral test that loads the page, navigates away,
+//      goes back, and checks whether Chrome restored the page from
+//      bfcache. If it did not, Chrome's own reasons are reported.
 //
-// The behavioral test is the authoritative one. Chrome's reasons list
-// is what bfcache actually evaluated, not a heuristic.
+// The behavioral test is the authoritative one for Chrome. Details
+// that matter for getting a real answer:
+//
+//   - Playwright launches Chromium with --disable-back-forward-cache,
+//     so the script removes that flag. The default headless shell
+//     cannot use bfcache at all (BackForwardCacheDisabledForDelegate),
+//     so the script launches the full Chromium build in headless mode
+//     (channel: 'chromium').
+//   - A restored page keeps its original navigation entry, whose type
+//     stays 'navigate'. Restoration is detected from the pageshow
+//     event's `persisted` flag instead. A page that was not restored
+//     loads again with a 'back_forward' navigation entry.
+//   - Reasons come from the DevTools protocol event
+//     Page.backForwardCacheNotUsed, the same source as the DevTools
+//     bfcache tester, with performance navigation notRestoredReasons
+//     as a fallback. The latter often reports only "masked".
 //
 // Usage:
 //   node bfcache-eligibility-check.js https://example.com/
 //   node bfcache-eligibility-check.js --urls https://example.com/ https://example.com/products
 //   node bfcache-eligibility-check.js --urls-file urls.txt
+//   node bfcache-eligibility-check.js --away https://example.com/about https://example.com/
+//
+// --away sets the page visited between load and back (default
+// about:blank). Use a page on your own site to test reasons such as a
+// cookie changed by the next page.
+//
+// Exit codes: 0 every URL eligible, 1 at least one URL not eligible,
+// 2 usage error or a URL that could not be tested (and none blocked).
 //
 // Reference: SEO for Engineers, Volume 1, Chapter 6.
 
-import { chromium } from 'playwright';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 
-function parseArgs(argv) {
-  const args = { urls: [], urlsFile: null };
-  const tokens = argv.slice(2);
+const TIMEOUT_MS = 30_000;
+
+export class UsageError extends Error {}
+
+export function readUrlsFile(path) {
+  let text;
+  try {
+    text = readFileSync(path, 'utf-8');
+  } catch (err) {
+    throw new UsageError(`cannot read --urls-file ${path}: ${err.message}`);
+  }
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'));
+}
+
+export function parseArgs(tokens) {
+  const args = { urls: [], urlsFile: null, away: 'about:blank' };
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
-    if (t === '--urls') {
+    if (t === '--urls-file' || t === '--away') {
+      const value = tokens[++i];
+      if (value === undefined || value.startsWith('--')) {
+        throw new UsageError(`${t} needs a value`);
+      }
+      if (t === '--away') args.away = value;
+      else args.urlsFile = value;
+    } else if (t === '--urls') {
       while (i + 1 < tokens.length && !tokens[i + 1].startsWith('--')) {
         args.urls.push(tokens[++i]);
       }
-    } else if (t === '--urls-file') {
-      args.urlsFile = tokens[++i];
-    } else if (t.startsWith('http')) {
+    } else if (t.startsWith('--')) {
+      throw new UsageError(`unknown option ${t}`);
+    } else {
       args.urls.push(t);
     }
   }
-  if (args.urlsFile) {
-    const lines = readFileSync(args.urlsFile, 'utf-8').split(/\r?\n/);
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith('#')) {
-        args.urls.push(trimmed);
-      }
+  if (args.urlsFile) args.urls.push(...readUrlsFile(args.urlsFile));
+  for (const url of args.urls) {
+    if (!/^https?:\/\//i.test(url)) {
+      throw new UsageError(`not an absolute http(s) URL: ${url}`);
     }
   }
+  if (args.urls.length === 0) throw new UsageError('no URLs given');
   return args;
 }
 
-async function checkOne(url, browser) {
+// True when the Cache-Control header carries the no-store directive.
+// Matches the directive token, not a substring of another directive.
+export function hasNoStore(cacheControl) {
+  if (!cacheControl) return false;
+  return cacheControl
+    .split(',')
+    .some((d) => d.trim().split('=')[0].trim().toLowerCase() === 'no-store');
+}
+
+// Flattens a NotRestoredReasons tree (main frame plus children) into a
+// list of reason strings.
+export function flattenNotRestoredReasons(node) {
+  if (!node) return [];
+  const own = (node.reasons || []).map((r) => r.reason).filter(Boolean);
+  return own.concat(...(node.children || []).map(flattenNotRestoredReasons));
+}
+
+// DevTools explanation types, from "the page can fix this" to "the
+// browser or the test environment caused this".
+const EXPLANATION_SEVERITY = {
+  PageSupportNeeded: 'high',
+  SupportPending: 'medium',
+  Circumstantial: 'low',
+};
+
+// Builds the per-URL result from what the browser observed.
+export function classify(observed) {
   const result = {
-    url,
-    cacheControl: null,
+    url: observed.url,
+    status: observed.status ?? null,
+    cacheControl: observed.cacheControl ?? null,
     headerCheck: 'unknown',
     behavioralCheck: 'unknown',
-    notRestoredReasons: null,
+    restored: null,
+    notRestoredReasons: [],
     issues: [],
+    eligible: false,
   };
 
-  const context = await browser.newContext();
-  const page = await context.newPage();
-
-  try {
-    // Step 1: navigate to the target and capture response headers.
-    const response = await page.goto(url, {
-      waitUntil: 'load',
-      timeout: 30_000,
-    });
-    const headers = response?.headers() || {};
-    result.cacheControl = headers['cache-control'] || null;
-
-    if (
-      result.cacheControl &&
-      result.cacheControl.toLowerCase().includes('no-store')
-    ) {
-      result.headerCheck = 'blocked';
-      result.issues.push({
-        severity: 'high',
-        type: 'cache_control_no_store',
-        message:
-          'Cache-Control: no-store on the response makes this page ' +
-          'bfcache-ineligible. Remove no-store if the page is safe to cache.',
-        detail: result.cacheControl,
-      });
-    } else {
-      result.headerCheck = 'ok';
-    }
-
-    // Step 2: behavioral test. Navigate away, then back, then read
-    // notRestoredReasons from the restored page's navigation entry.
-    try {
-      await page.goto('about:blank', { waitUntil: 'load' });
-      await page.goBack({ waitUntil: 'load', timeout: 30_000 });
-      // Give the navigation timing API a moment to materialize.
-      await page.waitForTimeout(500);
-
-      const behavior = await page.evaluate(() => {
-        const navEntry = performance.getEntriesByType('navigation')[0];
-        return {
-          type: navEntry?.type || null,
-          notRestoredReasons: navEntry?.notRestoredReasons || null,
-        };
-      });
-
-      // back_forward + no notRestoredReasons (or empty) means bfcache
-      // restored the page. Otherwise the reasons tell us why not.
-      const reasons = behavior.notRestoredReasons;
-      const restored =
-        behavior.type === 'back_forward' &&
-        (!reasons || !reasons.reasons || reasons.reasons.length === 0);
-
-      if (restored) {
-        result.behavioralCheck = 'restored';
-      } else {
-        result.behavioralCheck = 'not_restored';
-        result.notRestoredReasons = reasons;
-        if (reasons?.reasons?.length) {
-          for (const r of reasons.reasons) {
-            result.issues.push({
-              severity: 'high',
-              type: r.reason || 'unknown',
-              message: 'Chrome reported this bfcache blocker.',
-              detail: r,
-            });
-          }
-        }
-      }
-    } catch (err) {
-      result.behavioralCheck = 'error';
-      result.issues.push({
-        severity: 'low',
-        type: 'behavioral_test_failed',
-        message: err.message,
-      });
-    }
-  } catch (err) {
-    result.issues.push({
-      severity: 'high',
-      type: 'navigation_failed',
-      message: err.message,
-    });
-  } finally {
-    await context.close();
+  if (observed.error) {
+    result.behavioralCheck = 'error';
+    result.issues.push({ severity: 'high', type: 'check_failed', message: observed.error });
+    return result;
   }
 
-  result.eligible =
-    result.headerCheck === 'ok' && result.behavioralCheck === 'restored';
+  if (hasNoStore(result.cacheControl)) {
+    result.headerCheck = 'no_store';
+    result.issues.push({
+      severity: 'medium',
+      type: 'cache_control_no_store',
+      message:
+        'Cache-Control: no-store. Chrome refuses to restore this page from ' +
+        'bfcache whenever a cookie changed while the user was away, and other ' +
+        'browsers may refuse it outright. Remove no-store if the page is safe ' +
+        'to cache.',
+      detail: result.cacheControl,
+    });
+  } else {
+    result.headerCheck = 'ok';
+  }
+
+  result.restored = observed.persisted === true;
+  result.behavioralCheck = result.restored ? 'restored' : 'not_restored';
+
+  if (!result.restored) {
+    const explanations = observed.explanations || [];
+    result.notRestoredReasons = flattenNotRestoredReasons(observed.notRestoredReasons);
+    for (const e of explanations) {
+      result.issues.push({
+        severity: EXPLANATION_SEVERITY[e.type] || 'medium',
+        type: e.reason,
+        message: `Chrome did not restore the page (${e.type}).`,
+        detail: e.context ?? null,
+      });
+    }
+    if (explanations.length === 0) {
+      for (const reason of result.notRestoredReasons) {
+        result.issues.push({
+          severity: 'high',
+          type: reason,
+          message: 'Chrome did not restore the page (notRestoredReasons).',
+        });
+      }
+    }
+    if (explanations.length === 0 && result.notRestoredReasons.length === 0) {
+      result.issues.push({
+        severity: 'high',
+        type: 'not_restored_unknown',
+        message: 'Chrome did not restore the page and reported no reason.',
+      });
+    }
+  }
+
+  result.eligible = result.restored && result.headerCheck === 'ok';
   return result;
 }
 
+export function statusLabel(result) {
+  if (result.behavioralCheck === 'error') return 'ERROR';
+  return result.eligible ? 'OK' : 'BLOCKED';
+}
+
+export function exitCode(results) {
+  const labels = results.map(statusLabel);
+  if (labels.includes('BLOCKED')) return 1;
+  if (labels.includes('ERROR')) return 2;
+  return 0;
+}
+
+// Runs in every document before page scripts: records each pageshow,
+// whose `persisted` flag is true only for a bfcache restore.
+function recordPageshow() {
+  window.__bfcachePageshows = [];
+  addEventListener('pageshow', (event) => {
+    window.__bfcachePageshows.push(event.persisted);
+  });
+}
+
+async function checkOne(url, away, browser) {
+  const observed = { url };
+  const context = await browser.newContext();
+  await context.addInitScript(recordPageshow);
+  const page = await context.newPage();
+  const explanations = [];
+  try {
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Page.enable');
+    cdp.on('Page.backForwardCacheNotUsed', (event) => {
+      explanations.push(...(event.notRestoredExplanations || []));
+    });
+
+    // Step 1: load the target and capture the response headers.
+    const response = await page.goto(url, { waitUntil: 'load', timeout: TIMEOUT_MS });
+    observed.status = response?.status() ?? null;
+    observed.cacheControl = response?.headers()['cache-control'] ?? null;
+
+    // Step 2: navigate away and back. A restore fires pageshow but no
+    // load event, so wait for the commit and then for pageshow.
+    await page.goto(away, { waitUntil: 'load', timeout: TIMEOUT_MS });
+    await page.goBack({ waitUntil: 'commit', timeout: TIMEOUT_MS });
+    await page.waitForFunction(
+      () =>
+        document.readyState === 'complete' &&
+        Array.isArray(window.__bfcachePageshows) &&
+        window.__bfcachePageshows.length > 0,
+      null,
+      { timeout: TIMEOUT_MS }
+    );
+    const state = await page.evaluate(() => {
+      const nav = performance.getEntriesByType('navigation')[0];
+      const nrr = nav && nav.notRestoredReasons;
+      return {
+        persisted: window.__bfcachePageshows.at(-1) === true,
+        notRestoredReasons: nrr ? nrr.toJSON() : null,
+      };
+    });
+    Object.assign(observed, state, { explanations });
+  } catch (err) {
+    observed.error = err.message.split('\n')[0];
+  } finally {
+    await context.close();
+  }
+  return classify(observed);
+}
+
 async function main() {
-  const args = parseArgs(process.argv);
-  if (args.urls.length === 0) {
-    console.error('Usage: node bfcache-eligibility-check.js <url> [<url> ...]');
-    process.exit(2);
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    console.error(`bfcache-eligibility-check: ${err.message}`);
+    console.error(
+      'Usage: node bfcache-eligibility-check.js [--away <url>] ' +
+        '<url> [...] | --urls <url> [...] | --urls-file <file>'
+    );
+    return 2;
   }
 
+  const { chromium } = await import('playwright');
   // Launch Chromium once and reuse it across URLs; each check runs in a
   // fresh context so navigation history and bfcache state stay isolated.
-  const browser = await chromium.launch();
+  let browser;
+  try {
+    browser = await chromium.launch({
+      channel: 'chromium',
+      ignoreDefaultArgs: ['--disable-back-forward-cache'],
+    });
+  } catch (err) {
+    console.error(
+      `bfcache-eligibility-check: cannot launch Chromium: ${err.message.split('\n')[0]}`
+    );
+    console.error('Run `npx playwright install chromium` first.');
+    return 2;
+  }
   const results = [];
   try {
     for (const url of args.urls) {
-      const result = await checkOne(url, browser);
+      const result = await checkOne(url, args.away, browser);
       results.push(result);
-
-      const status = result.eligible ? 'OK' : 'BLOCKED';
       console.error(
-        `${status}\t${result.url}\t` +
+        `${statusLabel(result)}\t${result.url}\t` +
           result.issues.map((i) => i.type).join(',')
       );
     }
@@ -179,9 +307,12 @@ async function main() {
   }
 
   console.log(JSON.stringify(results.length === 1 ? results[0] : results, null, 2));
-
-  const anyBlocked = results.some((r) => !r.eligible);
-  process.exit(anyBlocked ? 1 : 0);
+  return exitCode(results);
 }
 
-main();
+const invokedDirectly =
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+if (invokedDirectly) {
+  process.exitCode = await main();
+}
