@@ -2,7 +2,7 @@
 #
 # Sample GitHub Actions workflow that runs Lighthouse CI against a
 # staging deployment on every pull request to main. Pairs with a
-# project-level .lighthouserc.yml that defines the assertions to
+# project-level lighthouserc.yml that defines the assertions to
 # enforce (the chapter 5 directory includes a starter version).
 #
 # To use, copy this file to .github/workflows/lighthouse.yml in your
@@ -12,8 +12,14 @@
 #     real staging-deployment command. It must print the deployed
 #     base URL on stdout so the next step can pick it up.
 #   - The URL list under the lighthouse-ci-action's `urls:` input.
+#     These URLs replace the `collect.url` list in lighthouserc.yml.
 #   - The `configPath` if your lighthouserc lives somewhere other than
 #     the repo root.
+#
+# Reports are kept as a workflow artifact (`uploadArtifacts`) and are
+# not published. Set `temporaryPublicStorage: true` only for pages
+# that are already public: it uploads every report, with screenshots
+# of the page, to a public URL anyone can open.
 #
 # Reference: SEO for Engineers, Volume 1, Chapter 6.
 
@@ -23,23 +29,33 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   lighthouse:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Deploy to staging
         id: deploy
         run: |
-          echo "STAGING_URL=$(./deploy-staging.sh)" >> $GITHUB_OUTPUT
+          # Assign first: a failure inside $(...) passed straight to
+          # echo would be ignored and Lighthouse would audit "/".
+          url="$(./deploy-staging.sh)"
+          if [ -z "$url" ]; then
+            echo "deploy-staging.sh printed no URL" >&2
+            exit 1
+          fi
+          echo "STAGING_URL=${url%/}" >> "$GITHUB_OUTPUT"
 
       - name: Run Lighthouse CI
-        uses: treosh/lighthouse-ci-action@v11
+        uses: treosh/lighthouse-ci-action@v12
         with:
           urls: |
             ${{ steps.deploy.outputs.STAGING_URL }}/
             ${{ steps.deploy.outputs.STAGING_URL }}/products/test-product
-          configPath: '.lighthouserc.yml'
+          configPath: './lighthouserc.yml'
           uploadArtifacts: true
-          temporaryPublicStorage: true
+          temporaryPublicStorage: false
