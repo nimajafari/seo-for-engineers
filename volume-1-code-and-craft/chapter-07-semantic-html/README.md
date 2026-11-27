@@ -9,19 +9,29 @@ content extraction, and anchor signal interpretation.
 
 This chapter has two toolchains, Python and Node.js. From this directory:
 
-Python:
+Python (3.11 or newer):
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+python -m pytest tests
 ```
 
-Node.js:
+Node.js (20 or newer):
 
 ```bash
 npm install
 npx playwright install chromium
+npm test
 ```
+
+The tests on both sides run offline. The Node tests use the built-in
+`node --test` runner and do not need Playwright installed.
+
+Both audit scripts use the same exit codes: 0 when no URL has a
+high-severity finding, 1 when at least one does, 2 for a usage error
+or a URL that could not be audited (fetch failure or HTTP status of
+400 or more) when no URL has a high-severity finding.
 
 ## Scripts
 
@@ -53,13 +63,33 @@ missing `<footer>`, missing top-level `<nav>`, headings inside
 The script does not try to be a full WCAG audit. It focuses on the
 patterns Chapter 7 identifies as having the highest SEO impact.
 
+A few details of how the raw HTML is read:
+
+- The body is decoded from bytes, using the `Content-Type` charset or
+  the page's `<meta charset>`, so UTF-8 pages served without a charset
+  parameter are not garbled.
+- Content inside a plain `<template>` is inert and ignored. A
+  declarative shadow DOM template (`<template shadowrootmode="open">`)
+  renders as part of the page, so its content is audited.
+- The UI-component check looks at ancestors below `<body>`. Classes on
+  `<body>` itself (`has-sidebar`, `modal-open`) describe the page, not
+  a component.
+- An icon link is named by text, `aria-label`, `aria-labelledby`,
+  `title`, an image `alt`, or a labelled `<svg>` / `role="img"`
+  element.
+
 Usage:
-Audit a single URL
+
+```bash
+# Audit a single URL
 python semantic-html-auditor.py --url https://example.com/
-Audit a list of URLs (one per line)
+
+# Audit a list of URLs (one per line, # for comments)
 python semantic-html-auditor.py --urls-file urls.txt
-JSON output to a file
+
+# JSON output to a file
 python semantic-html-auditor.py --url https://example.com/ --output report.json
+```
 
 ### `heading-hierarchy-validator.js`
 
@@ -75,14 +105,32 @@ names that match common card and modal patterns).
 The Playwright-based check matters here in a way it does not for the
 Python script. The validator runs against the rendered DOM, not the
 raw HTML response, so it catches headings injected by JavaScript at
-hydration time, which the Python auditor would miss.
+hydration time, which the Python auditor would miss. After the load
+event it waits for the network to go quiet (capped at five seconds)
+and then `--settle-ms` (default 500), so headings rendered from a
+client-side fetch are included.
+
+Headings are read in flat-tree order, the way Google's renderer
+flattens a page: the content of open shadow roots (web components,
+declarative shadow DOM) and slotted light-DOM content count where they
+render. Each heading reports `inShadowDom`. Closed shadow roots cannot
+be read. A page that answers with HTTP 400 or more is reported as an
+error, not validated.
 
 Usage:
+
+```bash
 node heading-hierarchy-validator.js https://example.com/
-Multiple URLs
+
+# Multiple URLs
 node heading-hierarchy-validator.js --urls https://example.com/ https://example.com/products/widget
-URLs from a file (one per line, # for comments)
+
+# URLs from a file (one per line, # for comments)
 node heading-hierarchy-validator.js --urls-file urls.txt
+
+# Wait longer for late client-side rendering
+node heading-hierarchy-validator.js --settle-ms 3000 https://example.com/
+```
 
 ## Reference snippets
 
@@ -91,7 +139,8 @@ node heading-hierarchy-validator.js --urls-file urls.txt
 A small ES module that builds natural-language alt text for product
 images from structured data. Exports `generateProductAlt(product)`.
 Handles partial data without producing double spaces or trailing
-punctuation. Use as a scaffold for CMS alt-text generation pipelines.
+punctuation, including CMS fields with stray whitespace and a `null`
+product. Use as a scaffold for CMS alt-text generation pipelines.
 
 The documented invariants are locked in by
 `generate-product-alt.example.test.js` (run with `npm test`, which uses
