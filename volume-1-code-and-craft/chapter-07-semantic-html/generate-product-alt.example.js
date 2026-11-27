@@ -62,16 +62,28 @@
  * @property {string} [primaryAttribute]
  */
 
+// CMS fields often carry stray whitespace ("Blue ", "running\nshoes").
+// Collapse it per field so the joined output keeps the no-doubled-space
+// guarantee; a whitespace-only field counts as missing.
+function clean(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).replace(/\s+/g, ' ').trim();
+}
+
 /**
  * Generate alt text for a product image from structured data. Missing
  * fields are skipped; the output never has trailing punctuation or
  * doubled separators.
  *
- * @param {Product} product
+ * @param {Product | null} [product]
  * @returns {string}
  */
-export function generateProductAlt(product = {}) {
-  const { name, color, category, primaryAttribute } = product;
+export function generateProductAlt(product) {
+  const source = product ?? {};
+  const name = clean(source.name);
+  const color = clean(source.color);
+  const category = clean(source.category);
+  const primaryAttribute = clean(source.primaryAttribute);
 
   // Color and category form the leading descriptor, joined with a
   // single space only when both are present. Joining with .join(' ')
