@@ -73,6 +73,24 @@ describe('generateProductAlt', () => {
     assert.equal(generateProductAlt({}), '');
   });
 
+  it('collapses stray whitespace in CMS fields', () => {
+    assert.equal(
+      generateProductAlt({
+        color: 'Blue ',
+        category: ' running \n shoes',
+        primaryAttribute: '\tcarbon  fiber sole',
+        name: 'Nike Air Max\n',
+      }),
+      'Blue running shoes with carbon fiber sole, Nike Air Max',
+    );
+  });
+
+  it('treats a null product and null or whitespace-only fields as missing', () => {
+    assert.equal(generateProductAlt(null), '');
+    assert.equal(generateProductAlt({ color: '   ', category: 'shoes' }), 'shoes');
+    assert.equal(generateProductAlt({ color: null, name: 'Nike Air Max' }), 'Nike Air Max');
+  });
+
   it('appends the product name only when a descriptor exists', () => {
     // Name alone -> name; name with a descriptor -> "descriptor, name".
     assert.equal(generateProductAlt({ name: 'Nike Air Max' }), 'Nike Air Max');

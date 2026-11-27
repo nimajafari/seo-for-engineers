@@ -22,6 +22,14 @@ it uses the raw HTML response (not the rendered DOM). For
 JavaScript-injected structure, use heading-hierarchy-validator.js
 instead, which loads the rendered DOM via Playwright.
 
+Content inside a plain <template> is inert and is ignored. A
+declarative shadow DOM template (<template shadowrootmode="open">)
+renders as part of the page, so its content is audited.
+
+Exit codes: 0 no high-severity findings, 1 at least one high-severity
+finding, 2 usage error or a URL that could not be fetched (and no
+high-severity findings elsewhere).
+
 Usage:
     python semantic-html-auditor.py --url https://example.com/
     python semantic-html-auditor.py --urls-file urls.txt
@@ -76,6 +84,9 @@ GENERIC_ALT_PATTERNS = (
 
 # Class names and roles that suggest an element is a UI component
 # whose internal headings should not pollute the document outline.
+# Keep in sync with UI_COMPONENT_INDICATORS and UI_ROLES in
+# heading-hierarchy-validator.js so the two tools agree.
+UI_ROLES = {"dialog", "alertdialog", "menu", "menuitem", "tooltip"}
 UI_COMPONENT_INDICATORS = {
     "card",
     "modal",
@@ -134,8 +145,24 @@ class AuditReport:
         }
 
 
-def fetch(url: str) -> tuple[int, str]:
-    """Fetch a URL and return status code and body."""
+HEADING_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"]
+
+
+def header_charset(content_type: str | None) -> str | None:
+    """The charset parameter of a Content-Type header, if any."""
+    if not content_type:
+        return None
+    match = re.search(r"charset\s*=\s*[\"']?([\w.:-]+)", content_type, re.I)
+    return match.group(1) if match else None
+
+
+def fetch(url: str) -> tuple[int, bytes, str | None]:
+    """Fetch a URL and return status code, raw body, and header charset.
+
+    The body stays bytes so BeautifulSoup can honour <meta charset>.
+    requests' .text falls back to ISO-8859-1 for text/html without a
+    charset parameter, which garbles UTF-8 pages.
+    """
     response = requests.get(
         url,
         timeout=REQUEST_TIMEOUT_SECONDS,
@@ -143,7 +170,31 @@ def fetch(url: str) -> tuple[int, str]:
         allow_redirects=True,
     )
     response.raise_for_status()
-    return response.status_code, response.text
+    return (
+        response.status_code,
+        response.content,
+        header_charset(response.headers.get("Content-Type")),
+    )
+
+
+def parse(body: bytes | str, charset: str | None = None) -> BeautifulSoup:
+    """Parse HTML and drop inert <template> content.
+
+    A plain <template> is never rendered, so its headings, links, and
+    images are not part of the page. A declarative shadow DOM template
+    (shadowrootmode, or the older shadowroot attribute) does render,
+    so it is kept.
+    """
+    if isinstance(body, bytes):
+        soup = BeautifulSoup(body, "html.parser", from_encoding=charset)
+    else:
+        soup = BeautifulSoup(body, "html.parser")
+    for template in soup.find_all("template"):
+        if template.decomposed:
+            continue
+        if template.get("shadowrootmode") is None and template.get("shadowroot") is None:
+            template.decompose()
+    return soup
 
 
 def excerpt(element: Tag, limit: int = 120) -> str:
@@ -173,16 +224,28 @@ def has_accessible_name(element: Tag) -> bool:
     for img in element.find_all("img"):
         if img.get("alt"):
             return True
+    # So does a labelled SVG or role="img" element, the usual markup
+    # for icon links (<svg aria-label="Search" role="img">).
+    for graphic in element.find_all(
+        lambda t: t.name == "svg" or (t.get("role") or "").lower() == "img"
+    ):
+        if graphic.get("aria-label") or graphic.get("aria-labelledby"):
+            return True
     return False
 
 
 def is_inside_ui_component(element: Tag) -> bool:
-    """Heuristic: is this element inside a UI component root?"""
+    """Heuristic: is this element inside a UI component root?
+
+    Stops below <body>. Body classes such as WordPress's "has-sidebar"
+    or Bootstrap's "modal-open" describe the whole page, not a
+    component, and would otherwise flag every heading.
+    """
     for ancestor in element.parents:
-        if not isinstance(ancestor, Tag):
-            continue
+        if not isinstance(ancestor, Tag) or ancestor.name in {"body", "html"}:
+            break
         role = (ancestor.get("role") or "").lower()
-        if role in {"dialog", "alertdialog", "menu", "tooltip", "menuitem"}:
+        if role in UI_ROLES:
             return True
         classes = " ".join(ancestor.get("class") or []).lower()
         if any(token in classes for token in UI_COMPONENT_INDICATORS):
@@ -192,7 +255,7 @@ def is_inside_ui_component(element: Tag) -> bool:
 
 def check_headings(soup: BeautifulSoup, report: AuditReport) -> None:
     """Check h1 uniqueness, level skipping, and aside pollution."""
-    headings = soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
+    headings = soup.find_all(HEADING_TAGS)
     h1_elements = [h for h in headings if h.name == "h1"]
 
     if not h1_elements:
@@ -232,7 +295,7 @@ def check_headings(soup: BeautifulSoup, report: AuditReport) -> None:
 
     # Headings inside aside that may pollute the outline.
     for aside in soup.find_all("aside"):
-        for heading in aside.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
+        for heading in aside.find_all(HEADING_TAGS):
             report.findings.append(
                 Finding(
                     severity="low",
@@ -433,14 +496,15 @@ def audit(url: str) -> AuditReport:
     """Run the full audit for a URL."""
     report = AuditReport(url=url)
     try:
-        status, body = fetch(url)
+        status, body, charset = fetch(url)
         report.status_code = status
         report.fetched = True
-    except Exception as exc:
+    except requests.RequestException as exc:
+        report.status_code = getattr(exc.response, "status_code", None)
         report.error = str(exc)
         return report
 
-    soup = BeautifulSoup(body, "html.parser")
+    soup = parse(body, charset)
 
     check_lang(soup, report)
     check_headings(soup, report)
@@ -469,11 +533,17 @@ def main() -> int:
     if args.url:
         urls = [args.url]
     else:
+        try:
+            lines = Path(args.urls_file).read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            parser.error(f"cannot read --urls-file: {exc}")
         urls = [
             line.strip()
-            for line in Path(args.urls_file).read_text().splitlines()
+            for line in lines
             if line.strip() and not line.strip().startswith("#")
         ]
+        if not urls:
+            parser.error(f"no URLs in {args.urls_file}")
 
     reports = [audit(u) for u in urls]
     out = {
@@ -500,9 +570,13 @@ def main() -> int:
     else:
         print(output_text)
 
-    # Exit non-zero if any URL has high-severity findings.
-    has_high = out["summary"]["high_severity_total"] > 0
-    return 1 if has_high else 0
+    # 1 if any URL has high-severity findings; otherwise 2 if any URL
+    # could not be fetched, since an unfetched page is not a pass.
+    if out["summary"]["high_severity_total"] > 0:
+        return 1
+    if any(not r.fetched for r in reports):
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
