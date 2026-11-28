@@ -46,6 +46,10 @@ Notes:
       URL sets need to respect that quota.
     - The output is one JSON object per URL, written to stdout or to
       --output as a JSON array.
+    - Exit codes: 0 every URL was inspected, 1 at least one inspection
+      failed (its record carries an "error" field), 2 usage or setup
+      error (missing or unreadable URL file or service-account key,
+      Google client libraries not installed).
 
 Reference: SEO for Engineers, Volume 1, Chapter 8.
 """
@@ -59,28 +63,35 @@ import sys
 from pathlib import Path
 from typing import Any
 
-try:
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-except ImportError:
-    print(
-        "FATAL: this script requires google-api-python-client and "
-        "google-auth. Install with:\n"
-        "    pip install google-api-python-client google-auth",
-        file=sys.stderr,
-    )
-    sys.exit(2)
-
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 
+INSTALL_HINT = (
+    "FATAL: this script requires google-api-python-client and "
+    "google-auth. Install with:\n"
+    "    pip install google-api-python-client google-auth"
+)
 
-def load_credentials(key_path: str) -> service_account.Credentials:
+
+# The Google client libraries are imported where they are used, so the
+# rest of the module (URL loading, response flattening) can be imported
+# and tested without them.
+def load_credentials(key_path: str):
+    from google.oauth2 import service_account
+
     return service_account.Credentials.from_service_account_file(
         key_path, scopes=SCOPES
     )
 
 
+def build_service(credentials):
+    from googleapiclient.discovery import build
+
+    return build("searchconsole", "v1", credentials=credentials)
+
+
 def load_urls(args: argparse.Namespace) -> list[str]:
+    """URLs from --url or --urls-file. Raises OSError or
+    UnicodeDecodeError when the file cannot be read."""
     if args.url:
         return [args.url]
     lines = Path(args.urls_file).read_text(encoding="utf-8").splitlines()
@@ -116,7 +127,9 @@ def inspect_one(service, site_url: str, url: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument(
         "--site",
         required=True,
@@ -141,6 +154,13 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    try:
+        urls = load_urls(args)
+    except (OSError, UnicodeDecodeError) as exc:
+        parser.error(f"cannot read --urls-file {args.urls_file}: {exc}")
+    if not urls:
+        parser.error(f"--urls-file {args.urls_file} lists no URLs")
+
     if not args.service_account:
         print(
             "FATAL: pass --service-account <path> or set "
@@ -149,10 +169,21 @@ def main() -> int:
         )
         return 2
 
-    credentials = load_credentials(args.service_account)
-    service = build("searchconsole", "v1", credentials=credentials)
+    try:
+        credentials = load_credentials(args.service_account)
+        service = build_service(credentials)
+    except ImportError:
+        print(INSTALL_HINT, file=sys.stderr)
+        return 2
+    except (OSError, ValueError) as exc:
+        # ValueError covers a key file that is not valid JSON or is
+        # missing service-account fields.
+        print(
+            f"FATAL: cannot load service-account key {args.service_account}: {exc}",
+            file=sys.stderr,
+        )
+        return 2
 
-    urls = load_urls(args)
     print(f"Inspecting {len(urls)} URL(s) via GSC URL Inspection API...", file=sys.stderr)
 
     results: list[dict[str, Any]] = []
@@ -164,7 +195,7 @@ def main() -> int:
                 f"  OK  {url} -> verdict={results[-1]['verdict']}",
                 file=sys.stderr,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - record any API failure per URL and go on
             errors += 1
             results.append({"url": url, "error": str(exc)})
             print(f"  ERR {url} -> {exc}", file=sys.stderr)
