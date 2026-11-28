@@ -14,24 +14,25 @@
 # urls.txt should contain one URL per line. Blank lines and lines
 # starting with `#` are ignored.
 #
+# For each URL the script fetches the page (following redirects),
+# fails it if the page itself returns an HTTP error, and extracts the
+# canonical href. It then requests the canonical URL without
+# following redirects: the canonical must answer 200 itself, since a
+# canonical that redirects to a 200 is exactly the drift this gate
+# exists to catch.
+#
 # Exit codes:
-#   0 - every URL's canonical tag returns 200.
+#   0 - every URL's canonical returns 200.
 #   1 - at least one canonical issue was found.
-#   2 - usage error (missing or invalid input file).
+#   2 - usage error (missing, unreadable, or empty input file, or
+#       curl or perl not installed).
 #
-# Cross-platform notes. The canonical extraction step needs a regex
-# engine that supports lookbehind or `\K`. Linux ships GNU grep with
-# PCRE support (`-P`). macOS ships BSD grep without `-P`. This script
-# detects the local grep at startup and falls back to a perl one-liner
-# on systems without GNU grep. Both code paths produce the same
-# output, so the rest of the script does not care which engine ran.
-#
-# The HTML extraction is a first-cut heuristic, not a full parser. It
-# matches the common attribute order `<link rel="canonical"
-# href="...">`. Pages that emit `<link href="..." rel="canonical">`
-# (attributes in the opposite order) or single-quoted attributes will
-# not match. For complete coverage, use head-audit.py in this same
-# directory.
+# Extraction. A perl one-liner (perl ships with macOS and the usual
+# Linux CI images) reads the page up to </head>, drops HTML comments,
+# and prints the href of every <link> whose rel includes "canonical",
+# in any attribute order and with double, single, or no quotes. It is
+# still a regular expression, not an HTML parser; head-audit.py in
+# this directory parses the page properly.
 #
 # Reference: SEO for Engineers, Volume 1, Chapter 8.
 
@@ -39,6 +40,7 @@ set -euo pipefail
 
 USER_AGENT="Mozilla/5.0 (compatible; SeoForEngineersAuditor/1.0; \
 +https://github.com/nimajafari/seo-for-engineers)"
+TIMEOUT_SECONDS=30
 
 # -----------------------------------------------------------------------------
 # Argument handling
@@ -46,40 +48,39 @@ USER_AGENT="Mozilla/5.0 (compatible; SeoForEngineersAuditor/1.0; \
 
 URLS_FILE="${1:-}"
 
-if [ -z "$URLS_FILE" ] || [ ! -f "$URLS_FILE" ]; then
+if [ -z "$URLS_FILE" ] || [ ! -f "$URLS_FILE" ] || [ ! -r "$URLS_FILE" ]; then
     echo "Usage: $0 <urls-file>" >&2
     echo "  urls-file: path to a text file with one URL per line." >&2
     exit 2
 fi
 
-# -----------------------------------------------------------------------------
-# Detect a regex engine that can extract the canonical href.
-#
-# Test by running grep -P against a known-matching input. If it
-# succeeds, GNU grep is available. If it errors (BSD grep on macOS
-# does not implement -P), fall back to perl, which ships by default
-# on macOS and on most Linux distributions.
-# -----------------------------------------------------------------------------
-
-if echo "test" | grep -P "test" >/dev/null 2>&1; then
-    HAS_GREP_PCRE=1
-else
-    HAS_GREP_PCRE=0
-fi
-
-# Emit every canonical href found, one per line, so the caller can both
-# take the first and detect duplicates (multiple canonicals are a
-# high-severity signal: Google typically ignores all of them).
-extract_canonicals() {
-    if [ "$HAS_GREP_PCRE" -eq 1 ]; then
-        # GNU grep with PCRE. Linux, GitHub Actions Ubuntu runners,
-        # most CI environments.
-        grep -oiP '<link\s+rel="canonical"\s+href="\K[^"]+'
-    else
-        # BSD grep on macOS does not implement -P. Fall back to perl,
-        # which is POSIX-portable.
-        perl -ne 'while (/<link\s+rel="canonical"\s+href="([^"]+)"/ig) { print "$1\n"; }'
+for tool in curl perl; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "$0: $tool is required but not installed." >&2
+        exit 2
     fi
+done
+
+# Emit every canonical href found in <head>, one per line, so the
+# caller can both take the first and detect duplicates (multiple
+# canonicals are a high-severity signal: Google typically ignores all
+# of them). A canonical tag with no href prints "<empty>".
+extract_canonicals() {
+    perl -0777 -ne '
+        s/<!--.*?-->//gs;
+        $_ = $1 if m{^(.*?)</head\s*>}is;
+        while (m{<link\b([^>]*)>}gis) {
+            my $attrs = $1;
+            my %attr;
+            while ($attrs =~ m{([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+)))?}g) {
+                $attr{lc $1} = $2 // $3 // $4 // "";
+            }
+            next unless grep { lc($_) eq "canonical" } split " ", ($attr{rel} // "");
+            my $href = $attr{href} // "";
+            $href =~ s/^\s+|\s+$//g;
+            $href =~ s/&amp;/&/gi;
+            print length($href) ? "$href\n" : "<empty>\n";
+        }'
 }
 
 # -----------------------------------------------------------------------------
@@ -88,8 +89,14 @@ extract_canonicals() {
 
 failures=0
 checked=0
+page_file=$(mktemp)
+trap 'rm -f "$page_file"' EXIT
 
-while IFS= read -r url || [ -n "$url" ]; do
+while IFS= read -r line || [ -n "$line" ]; do
+    # Trim surrounding whitespace, including the \r of CRLF files.
+    url="${line#"${line%%[![:space:]]*}"}"
+    url="${url%"${url##*[![:space:]]}"}"
+
     # Skip blanks and comments.
     case "$url" in
         ""|\#*) continue ;;
@@ -97,14 +104,21 @@ while IFS= read -r url || [ -n "$url" ]; do
 
     checked=$((checked + 1))
 
-    html=$(curl -sSL -A "$USER_AGENT" "$url" || true)
-    if [ -z "$html" ]; then
+    # curl prints 000 for http_code when the request itself failed.
+    page_status=$(curl -sL -A "$USER_AGENT" --max-time "$TIMEOUT_SECONDS" \
+        -o "$page_file" -w "%{http_code}" "$url" || true)
+    if [ -z "$page_status" ] || [ "$page_status" = "000" ]; then
         echo "FAIL: $url could not be fetched"
         failures=$((failures + 1))
         continue
     fi
+    if [ "$page_status" -ge 400 ]; then
+        echo "FAIL: $url returned HTTP $page_status"
+        failures=$((failures + 1))
+        continue
+    fi
 
-    canonicals=$(printf '%s' "$html" | extract_canonicals || true)
+    canonicals=$(extract_canonicals < "$page_file" || true)
     if [ -z "$canonicals" ]; then
         echo "FAIL: $url has no <link rel=\"canonical\"> tag"
         failures=$((failures + 1))
@@ -119,10 +133,29 @@ while IFS= read -r url || [ -n "$url" ]; do
     fi
 
     canonical=$(printf '%s\n' "$canonicals" | head -n1)
+    if [ "$canonical" = "<empty>" ]; then
+        echo "FAIL: $url has a canonical tag with no href"
+        failures=$((failures + 1))
+        continue
+    fi
+    if ! printf '%s' "$canonical" | grep -qiE '^https?://'; then
+        echo "FAIL: $url -> canonical=$canonical is not an absolute URL"
+        failures=$((failures + 1))
+        continue
+    fi
 
-    status=$(curl -sSL -A "$USER_AGENT" -o /dev/null \
-        -w "%{http_code}" "$canonical" || echo "000")
-    if [ "$status" != "200" ]; then
+    # No -L: the canonical has to answer 200 itself.
+    result=$(curl -s -A "$USER_AGENT" --max-time "$TIMEOUT_SECONDS" -o /dev/null \
+        -w "%{http_code} %{redirect_url}" "$canonical" || true)
+    status="${result%% *}"
+    location="${result#* }"
+    if [ -z "$status" ] || [ "$status" = "000" ]; then
+        echo "FAIL: $url -> canonical=$canonical is unreachable"
+        failures=$((failures + 1))
+    elif [ "${status:0:1}" = "3" ]; then
+        echo "FAIL: $url -> canonical=$canonical redirects (HTTP $status to $location)"
+        failures=$((failures + 1))
+    elif [ "$status" != "200" ]; then
         echo "FAIL: $url -> canonical=$canonical (HTTP $status)"
         failures=$((failures + 1))
     fi
@@ -131,6 +164,11 @@ done < "$URLS_FILE"
 # -----------------------------------------------------------------------------
 # Report
 # -----------------------------------------------------------------------------
+
+if [ "$checked" -eq 0 ]; then
+    echo "$0: $URLS_FILE lists no URLs." >&2
+    exit 2
+fi
 
 echo ""
 if [ "$failures" -gt 0 ]; then
