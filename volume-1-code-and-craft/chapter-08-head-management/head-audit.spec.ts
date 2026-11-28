@@ -22,14 +22,27 @@
 // Usage:
 //   npx playwright test head-audit.spec.ts
 //
-// Edit the PAGES_TO_AUDIT array below with your staging URLs. The
-// `shouldIndex` flag controls whether the URL is expected to be
+// Edit the PAGES_TO_AUDIT array below with your staging URLs, or set
+// HEAD_AUDIT_PAGES to the path of a JSON file holding the same array:
+//
+//   HEAD_AUDIT_PAGES=pages.json npx playwright test head-audit.spec.ts
+//
+// The `shouldIndex` flag controls whether the URL is expected to be
 // indexable; URLs marked false are expected to have noindex set at
 // either the meta-tag or X-Robots-Tag header layer.
 //
+// Title and canonical are read from <head> only: an SVG <title> in the
+// body is not the page title, and Google ignores canonicals in the
+// body. Robots directives are parsed with the same rules as
+// noindex-deployment-gate.js, so "max-image-preview:none" is not
+// mistaken for noindex and <meta name="ROBOTS"> still counts.
+//
 // Reference: SEO for Engineers, Volume 1, Chapter 8.
 
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
+
+import { hasNoindex } from './noindex-deployment-gate.js';
 
 type AuditEntry = {
   url: string;
@@ -40,21 +53,23 @@ type AuditEntry = {
   expectedCanonicalOrigin?: string;
 };
 
-// `none` is documented by Google as equivalent to `noindex, nofollow`,
-// so it must trip the same indexation check. Token boundaries keep the
-// match from firing inside unrelated directive values.
-const NOINDEX_DIRECTIVE = /(^|[\s,;:])(noindex|none)([\s,;]|$)/i;
+// After the load event, wait for the network to go quiet, capped so
+// analytics beacons and long-polling cannot hold every test for the
+// full timeout, then a short settle (HEAD_AUDIT_SETTLE_MS, default
+// 500) for tags that client-side scripts add after the last response.
+const NETWORK_IDLE_CAP_MS = 5_000;
+const SETTLE_MS = Number(process.env.HEAD_AUDIT_SETTLE_MS ?? 500);
 
-function hasNoindex(value: string): boolean {
-  return NOINDEX_DIRECTIVE.test(value);
-}
-
-const PAGES_TO_AUDIT: AuditEntry[] = [
+const DEFAULT_PAGES: AuditEntry[] = [
   { url: 'https://staging.example.com/',                  type: 'home',    shouldIndex: true  },
   { url: 'https://staging.example.com/products/sample',   type: 'product', shouldIndex: true  },
   { url: 'https://staging.example.com/account/settings',  type: 'account', shouldIndex: false },
   { url: 'https://staging.example.com/search?q=boots',    type: 'search',  shouldIndex: false },
 ];
+
+const PAGES_TO_AUDIT: AuditEntry[] = process.env.HEAD_AUDIT_PAGES
+  ? JSON.parse(readFileSync(process.env.HEAD_AUDIT_PAGES, 'utf-8'))
+  : DEFAULT_PAGES;
 
 for (const entry of PAGES_TO_AUDIT) {
   const { url, type, shouldIndex, expectedCanonicalOrigin } = entry;
@@ -63,20 +78,25 @@ for (const entry of PAGES_TO_AUDIT) {
     // Captured per test in beforeEach. Some noindex deployments live
     // only in the X-Robots-Tag response header, so we keep it alongside
     // the rendered <head>.
-    let xRobotsTag = '';
+    // Every X-Robots-Tag header, kept separate so a "googlebot:" prefix
+    // in one does not bleed into the next.
+    let xRobotsTag: string[] = [];
 
     test.beforeEach(async ({ page }) => {
-      // 'load' rather than 'networkidle': <head> tags are present at
-      // load, and networkidle never settles on pages with analytics
-      // beacons or long-polling, wasting the timeout for no added signal.
       const response = await page.goto(url, { waitUntil: 'load' });
-      xRobotsTag = response?.headers()['x-robots-tag'] ?? '';
+      await page
+        .waitForLoadState('networkidle', { timeout: NETWORK_IDLE_CAP_MS })
+        .catch(() => {});
+      if (SETTLE_MS > 0) await page.waitForTimeout(SETTLE_MS);
+      xRobotsTag = ((await response?.headersArray()) ?? [])
+        .filter((h) => h.name.toLowerCase() === 'x-robots-tag')
+        .map((h) => h.value);
     });
 
     // ── Title ──────────────────────────────────────────────────────────────
 
     test('contains exactly one title element with valid content', async ({ page }) => {
-      const titles = page.locator('title');
+      const titles = page.locator('head > title');
       await expect(titles).toHaveCount(1);
 
       const titleText = ((await titles.textContent()) ?? '').trim();
@@ -92,7 +112,7 @@ for (const entry of PAGES_TO_AUDIT) {
     // ── Canonical ──────────────────────────────────────────────────────────
 
     test('contains exactly one absolute, clean canonical URL', async ({ page }) => {
-      const canonicals = page.locator('link[rel="canonical"]');
+      const canonicals = page.locator('head link[rel~="canonical" i]');
       await expect(canonicals).toHaveCount(1);
 
       const href = (await canonicals.getAttribute('href')) ?? '';
@@ -130,24 +150,27 @@ for (const entry of PAGES_TO_AUDIT) {
     // ── Robots / indexation posture ────────────────────────────────────────
 
     test('matches the expected indexation state', async ({ page }) => {
-      const robotsMeta = page.locator('meta[name="robots"]');
-      const metaContent =
-        (await robotsMeta.count()) > 0 ? (await robotsMeta.first().getAttribute('content')) ?? '' : '';
+      // Every robots and googlebot tag counts, and the name is
+      // case-insensitive, as it is for Google.
+      const metaContents = await page
+        .locator('meta[name="robots" i], meta[name="googlebot" i]')
+        .evaluateAll((tags) => tags.map((t) => t.getAttribute('content') ?? ''));
+      const metaContent = metaContents.join(' | ');
 
       // Combine both signals so a noindex set at either layer is detected.
-      const isNoindex = hasNoindex(xRobotsTag) || hasNoindex(metaContent);
+      const isNoindex = xRobotsTag.some(hasNoindex) || metaContents.some(hasNoindex);
 
       if (shouldIndex) {
         expect(
           isNoindex,
           `expected ${url} to be indexable, but noindex was set ` +
-            `(x-robots-tag="${xRobotsTag}", meta="${metaContent}")`,
+            `(x-robots-tag="${xRobotsTag.join(' | ')}", meta="${metaContent}")`,
         ).toBe(false);
       } else {
         expect(
           isNoindex,
           `expected ${url} to be noindex, but neither layer set it ` +
-            `(x-robots-tag="${xRobotsTag}", meta="${metaContent}")`,
+            `(x-robots-tag="${xRobotsTag.join(' | ')}", meta="${metaContent}")`,
         ).toBe(true);
       }
     });
@@ -192,21 +215,34 @@ for (const entry of PAGES_TO_AUDIT) {
       const twitterCard = page.locator('meta[name="twitter:card"]');
       await expect(twitterCard).toHaveCount(1);
 
-      const cardType = (await twitterCard.getAttribute('content')) ?? '';
+      const cardType = ((await twitterCard.getAttribute('content')) ?? '').trim();
       expect(['summary', 'summary_large_image', 'app', 'player']).toContain(cardType);
 
-      await expect(page.locator('meta[name="twitter:title"]')).toHaveCount(1);
-      await expect(page.locator('meta[name="twitter:description"]')).toHaveCount(1);
+      // X falls back to og:title and og:description when the twitter:
+      // tags are absent, so either one satisfies each requirement.
+      for (const field of ['title', 'description']) {
+        const count = await page
+          .locator(`meta[name="twitter:${field}"], meta[property="og:${field}"]`)
+          .count();
+        expect(count, `expected twitter:${field} or og:${field}`).toBeGreaterThan(0);
+      }
     });
 
     // ── Charset ────────────────────────────────────────────────────────────
 
     test('declares UTF-8 charset', async ({ page }) => {
-      const charset = page.locator('meta[charset]');
-      await expect(charset).toHaveCount(1);
-
-      const charsetValue = (await charset.getAttribute('charset')) ?? '';
-      expect(charsetValue.toLowerCase()).toBe('utf-8');
+      // <meta charset="utf-8"> or the older http-equiv form; both are valid.
+      const declarations = await page
+        .locator('meta[charset], meta[http-equiv="content-type" i]')
+        .evaluateAll((tags) =>
+          tags.map((t) =>
+            t.getAttribute('charset') ??
+            /charset\s*=\s*([^;\s]+)/i.exec(t.getAttribute('content') ?? '')?.[1] ??
+            '',
+          ),
+        );
+      expect(declarations, 'expected exactly one charset declaration').toHaveLength(1);
+      expect(declarations[0].trim().toLowerCase()).toBe('utf-8');
     });
 
     // ── hreflang (non-blocking shape, hard once present) ───────────────────
@@ -217,8 +253,12 @@ for (const entry of PAGES_TO_AUDIT) {
 
       if (count === 0) return; // Not required on all pages.
 
-      // x-default must be present when hreflang is used.
-      await expect(page.locator('link[rel="alternate"][hreflang="x-default"]')).toHaveCount(1);
+      // SOFT: Google recommends, but does not require, an x-default.
+      const xDefaults = await page.locator('link[rel="alternate"][hreflang="x-default" i]').count();
+      if (xDefaults === 0) {
+        console.warn(`[soft] ${url}: hreflang is used but there is no x-default`);
+      }
+      expect(xDefaults, 'expected at most one x-default').toBeLessThanOrEqual(1);
 
       // Every hreflang href must be absolute.
       for (let i = 0; i < count; i++) {
