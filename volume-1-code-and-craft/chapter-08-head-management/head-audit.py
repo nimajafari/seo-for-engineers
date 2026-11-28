@@ -10,9 +10,10 @@ High severity findings include missing or duplicated title, missing or
 duplicated canonical, canonical pointing to a non-200 response, the
 noindex plus canonical-to-an-indexable-URL conflict, and noindex on a
 URL flagged as indexable. Medium severity findings include relative
-canonical URLs, canonical host mismatches, generic title values, and
-missing meta description. Low severity findings include missing OG and
-X card markup and missing or misconfigured viewport.
+canonical URLs, canonical host mismatches, generic title values (or
+the og:site_name alone), and a missing or duplicated meta description.
+Low severity findings include missing OG and X card markup, missing or
+misconfigured viewport, and a missing or non-UTF-8 charset.
 
 URLs can be sourced from --url, --urls-file, or --sitemap.
 
@@ -22,6 +23,18 @@ Usage:
     python head-audit.py --sitemap https://example.com/sitemap.xml --limit 50
     python head-audit.py --url https://example.com/ --check-canonical-status
     python head-audit.py --url https://example.com/account --expect-noindex
+
+Title, canonical, and the other head metadata are read from <head>
+only, so an SVG <title> or a <link rel="canonical"> in the body is not
+mistaken for the page's own (Google ignores body canonicals). Robots
+meta tags are read from the whole document and every one counts, with
+names matched case-insensitively, because a missed noindex is the
+expensive failure. Redirects are followed and the final URL is the one
+audited.
+
+Exit codes: 0 no high-severity findings, 1 at least one high-severity
+finding, 2 usage error or a URL that could not be audited (network
+error or HTTP status >= 400) and no high-severity findings elsewhere.
 
 URLs flagged as intentionally non-indexable do not raise a noindex
 finding. Pass --expect-noindex with --url, or append a 'noindex' token
@@ -45,7 +58,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urldefrag, urljoin, urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -71,6 +84,18 @@ GENERIC_TITLE_VALUES = {
     "title",
 }
 
+# Robots directives that carry a value after a colon. Any other
+# "word:" prefix in a robots value names a user agent, as in
+# "X-Robots-Tag: googlebot: noindex".
+VALUE_DIRECTIVES = {
+    "max-snippet",
+    "max-image-preview",
+    "max-video-preview",
+    "unavailable_after",
+}
+# Google documents "none" as equivalent to "noindex, nofollow".
+NOINDEX_DIRECTIVES = {"noindex", "none"}
+
 
 @dataclass
 class Finding:
@@ -87,6 +112,7 @@ class PageReport:
     """Aggregate audit output for a single URL."""
 
     url: str
+    final_url: str | None = None
     fetched: bool = False
     status_code: int | None = None
     error: str | None = None
@@ -95,6 +121,7 @@ class PageReport:
     def to_dict(self) -> dict[str, Any]:
         return {
             "url": self.url,
+            "final_url": self.final_url,
             "fetched": self.fetched,
             "status_code": self.status_code,
             "error": self.error,
@@ -115,29 +142,83 @@ class PageReport:
         }
 
 
-def fetch(url: str) -> tuple[int, str, dict[str, str]]:
-    """Fetch a URL and return status code, body, and response headers."""
+@dataclass
+class Fetched:
+    """The parts of an HTTP response the audit uses."""
+
+    status: int
+    url: str  # final URL, after redirects
+    body: bytes
+    charset: str | None
+    x_robots_tag: list[str]
+
+
+def header_charset(content_type: str | None) -> str | None:
+    """The charset parameter of a Content-Type value, if any."""
+    if not content_type:
+        return None
+    match = re.search(r'charset\s*=\s*"?([^";\s]+)', content_type, re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def fetch(url: str) -> Fetched:
+    """GET a URL, following redirects. Raises requests.RequestException
+    on network errors; HTTP error statuses are returned, not raised."""
     response = requests.get(
         url,
         timeout=REQUEST_TIMEOUT_SECONDS,
         headers={"User-Agent": USER_AGENT},
         allow_redirects=True,
     )
-    response.raise_for_status()
-    # Normalize header names to lowercase.
-    headers = {k.lower(): v for k, v in response.headers.items()}
-    return response.status_code, response.text, headers
+    # Keep each X-Robots-Tag header separate: requests joins repeated
+    # headers with ", ", which blurs a "googlebot:" prefix in one header
+    # into the directives of the next.
+    raw_headers = getattr(response.raw, "headers", None)
+    if raw_headers is not None and hasattr(raw_headers, "getlist"):
+        x_robots_tag = raw_headers.getlist("X-Robots-Tag")
+    else:
+        value = response.headers.get("X-Robots-Tag")
+        x_robots_tag = [value] if value else []
+    return Fetched(
+        status=response.status_code,
+        url=response.url,
+        body=response.content,
+        charset=header_charset(response.headers.get("Content-Type")),
+        x_robots_tag=x_robots_tag,
+    )
 
 
-def fetch_status_only(url: str) -> int:
-    """HEAD a URL and return the final status code after redirects."""
+def parse(body: bytes | str, charset: str | None = None) -> BeautifulSoup:
+    """Parse HTML. Bytes are decoded with the header charset when there
+    is one, otherwise BeautifulSoup sniffs the <meta charset> and the
+    byte content, which avoids requests' ISO-8859-1 default for text/html
+    responses without a charset."""
+    if isinstance(body, bytes):
+        return BeautifulSoup(body, "html.parser", from_encoding=charset)
+    return BeautifulSoup(body, "html.parser")
+
+
+def canonical_status(url: str) -> tuple[int, str | None]:
+    """Status of the canonical URL itself, without following redirects,
+    and the redirect target if there is one. A canonical that redirects
+    is canonical drift, so the redirect must not be followed to a 200.
+    Falls back to GET for servers that reject HEAD."""
     response = requests.head(
         url,
         timeout=REQUEST_TIMEOUT_SECONDS,
         headers={"User-Agent": USER_AGENT},
-        allow_redirects=True,
+        allow_redirects=False,
     )
-    return response.status_code
+    if response.status_code in (405, 501):
+        response = requests.get(
+            url,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            headers={"User-Agent": USER_AGENT},
+            allow_redirects=False,
+            stream=True,
+        )
+        response.close()
+    return response.status_code, response.headers.get("Location")
 
 
 def parse_sitemap(sitemap_url: str, limit: int | None = None) -> list[str]:
@@ -165,7 +246,8 @@ def parse_sitemap(sitemap_url: str, limit: int | None = None) -> list[str]:
         for child in root.findall("sm:sitemap", ns):
             loc = child.find("sm:loc", ns)
             if loc is not None and loc.text:
-                urls.extend(parse_sitemap(loc.text.strip(), limit=limit))
+                remaining = None if limit is None else limit - len(urls)
+                urls.extend(parse_sitemap(loc.text.strip(), limit=remaining))
                 if limit is not None and len(urls) >= limit:
                     return urls[:limit]
         return urls
@@ -181,34 +263,82 @@ def parse_sitemap(sitemap_url: str, limit: int | None = None) -> list[str]:
     return urls
 
 
+def _in_foreign_content(tag) -> bool:
+    """True inside <svg> or <math>, whose <title> is not the page title."""
+    return tag.find_parent(["svg", "math"]) is not None
+
+
 def get_head_data(soup: BeautifulSoup) -> dict[str, Any]:
     """Extract head element data into a structured dict."""
+    # Head metadata only counts inside <head>. Without an explicit
+    # <head> (html.parser does not infer one), use the whole document,
+    # still skipping SVG and MathML.
+    scope = soup.head or soup
 
-    def meta_content(name_or_property: str, attr: str = "name") -> str | None:
-        tag = soup.find("meta", attrs={attr: name_or_property})
-        return tag.get("content") if tag else None
+    def in_scope(tags):
+        return [t for t in tags if not _in_foreign_content(t)]
 
-    titles = soup.find_all("title")
-    canonical_tags = soup.find_all("link", attrs={"rel": "canonical"})
-    description_tags = soup.find_all("meta", attrs={"name": "description"})
-    charset_tag = soup.find("meta", charset=True)
+    metas = in_scope(scope.find_all("meta"))
+
+    def attr_is(tag, attr: str, value: str) -> bool:
+        return (tag.get(attr) or "").strip().lower() == value
+
+    def meta_content(key: str, attrs: tuple[str, ...] = ("name",)) -> str | None:
+        for tag in metas:
+            if any(attr_is(tag, attr, key) for attr in attrs):
+                return tag.get("content")
+        return None
+
+    def robots_contents(key: str) -> str | None:
+        # Every robots tag counts (Google combines them), wherever it
+        # appears, and the name is case-insensitive.
+        values = [
+            tag.get("content") or ""
+            for tag in soup.find_all("meta")
+            if attr_is(tag, "name", key)
+        ]
+        return ", ".join(values) if values else None
+
+    titles = in_scope(scope.find_all("title"))
+    canonical_tags = [
+        tag
+        for tag in in_scope(scope.find_all("link"))
+        if "canonical" in [rel.lower() for rel in (tag.get("rel") or [])]
+    ]
+    description_tags = [t for t in metas if attr_is(t, "name", "description")]
+
+    charset = None
+    for tag in metas:
+        if tag.get("charset"):
+            charset = tag["charset"].strip()
+            break
+        if attr_is(tag, "http-equiv", "content-type"):
+            charset = header_charset(tag.get("content"))
+            if charset:
+                break
+
+    canonical = None
+    if canonical_tags:
+        canonical = (canonical_tags[0].get("href") or "").strip() or None
 
     return {
         "title_count": len(titles),
-        "title": titles[0].get_text().strip() if titles else None,
+        "title": " ".join(titles[0].get_text().split()) if titles else None,
         "description": meta_content("description"),
         "description_count": len(description_tags),
-        "charset": charset_tag.get("charset") if charset_tag else None,
-        "robots": meta_content("robots"),
-        "googlebot": meta_content("googlebot"),
+        "charset": charset,
+        "robots": robots_contents("robots"),
+        "googlebot": robots_contents("googlebot"),
         "viewport": meta_content("viewport"),
         "canonical_count": len(canonical_tags),
-        "canonical": canonical_tags[0].get("href") if canonical_tags else None,
-        "og_title": meta_content("og:title", attr="property"),
-        "og_description": meta_content("og:description", attr="property"),
-        "og_image": meta_content("og:image", attr="property"),
-        "og_url": meta_content("og:url", attr="property"),
-        "twitter_card": meta_content("twitter:card"),
+        "canonical": canonical,
+        "og_title": meta_content("og:title", ("property",)),
+        "og_description": meta_content("og:description", ("property",)),
+        "og_image": meta_content("og:image", ("property",)),
+        "og_url": meta_content("og:url", ("property",)),
+        "og_site_name": meta_content("og:site_name", ("property",)),
+        # X reads twitter:* from name=, but property= is common and works.
+        "twitter_card": meta_content("twitter:card", ("name", "property")),
     }
 
 
@@ -243,15 +373,43 @@ def check_title(head: dict[str, Any], report: PageReport) -> None:
         )
         return
 
-    if title.lower() in GENERIC_TITLE_VALUES:
+    site_name = (head.get("og_site_name") or "").strip().lower()
+    if title.lower() in GENERIC_TITLE_VALUES or (site_name and title.lower() == site_name):
         report.findings.append(
             Finding(
                 severity="medium",
                 rule="generic_title",
-                message=f'<title> "{title}" looks like a CMS or template default, not descriptive content.',
+                message=f'<title> "{title}" looks like a CMS or template default '
+                "(or the site name alone), not descriptive content.",
                 detail=title,
             )
         )
+
+
+def _host(url: str) -> str:
+    """Lowercased host, plus the port when it is not the scheme default."""
+    parts = urlsplit(url)
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    default = {"http": 80, "https": 443}.get(parts.scheme.lower())
+    host = parts.hostname or ""
+    return host if port in (None, default) else f"{host}:{port}"
+
+
+def normalize_url(url: str) -> str:
+    """Compare-friendly URL: scheme and host lowercased, default port,
+    fragment and trailing slash dropped."""
+    parts = urlsplit(urldefrag(url)[0])
+    return urlunsplit(
+        (parts.scheme.lower(), _host(url), parts.path.rstrip("/"), parts.query, "")
+    )
+
+
+def is_absolute_http(url: str) -> bool:
+    parts = urlsplit(url)
+    return parts.scheme.lower() in ("http", "https") and bool(parts.netloc)
 
 
 def check_canonical(
@@ -282,9 +440,16 @@ def check_canonical(
 
     canonical = head["canonical"]
     if not canonical:
+        report.findings.append(
+            Finding(
+                severity="high",
+                rule="missing_canonical",
+                message="<link rel=\"canonical\"> has no href, so it names no canonical URL.",
+            )
+        )
         return
 
-    if not (canonical.startswith("http://") or canonical.startswith("https://")):
+    if not is_absolute_http(canonical):
         report.findings.append(
             Finding(
                 severity="medium",
@@ -295,8 +460,8 @@ def check_canonical(
         )
         return
 
-    page_host = urlparse(page_url).netloc
-    canonical_host = urlparse(canonical).netloc
+    page_host = _host(page_url)
+    canonical_host = _host(canonical)
     if page_host and canonical_host and page_host != canonical_host:
         report.findings.append(
             Finding(
@@ -310,18 +475,8 @@ def check_canonical(
 
     if check_status:
         try:
-            status = fetch_status_only(canonical)
-            if status != 200:
-                report.findings.append(
-                    Finding(
-                        severity="high",
-                        rule="canonical_not_200",
-                        message=f"Canonical URL returns HTTP {status}, not 200. "
-                        "Canonical signal is effectively lost.",
-                        detail=canonical,
-                    )
-                )
-        except Exception as exc:
+            status, location = canonical_status(canonical)
+        except requests.RequestException as exc:
             report.findings.append(
                 Finding(
                     severity="high",
@@ -330,32 +485,72 @@ def check_canonical(
                     detail=canonical,
                 )
             )
+            return
+        if 300 <= status < 400:
+            report.findings.append(
+                Finding(
+                    severity="high",
+                    rule="canonical_not_200",
+                    message=f"Canonical URL redirects (HTTP {status} to {location}). "
+                    "Point the canonical at the final URL.",
+                    detail=canonical,
+                )
+            )
+        elif status != 200:
+            report.findings.append(
+                Finding(
+                    severity="high",
+                    rule="canonical_not_200",
+                    message=f"Canonical URL returns HTTP {status}, not 200. "
+                    "Canonical signal is effectively lost.",
+                    detail=canonical,
+                )
+            )
 
 
-# Matches a `noindex` or `none` directive as a whole token. Google
-# documents content="none" as equivalent to "noindex, nofollow", so it
-# must be detected wherever a literal "noindex" would be.
-_NOINDEX_DIRECTIVE = re.compile(r"(^|[\s,;:])(noindex|none)([\s,;]|$)", re.IGNORECASE)
+def robots_directives(value: str | None) -> list[tuple[str | None, str]]:
+    """Split a robots meta content or X-Robots-Tag value into
+    (user_agent, directive) pairs, directive names lowercased.
+
+    "googlebot: noindex" scopes the directives after it to googlebot,
+    while "max-image-preview:none" is one directive whose value happens
+    to be "none", not the "none" directive.
+    """
+    pairs: list[tuple[str | None, str]] = []
+    agent: str | None = None
+    for token in re.split(r"[,;]", value or ""):
+        token = token.strip()
+        name, sep, rest = token.partition(":")
+        if sep and name.strip().lower() not in VALUE_DIRECTIVES:
+            agent = name.strip().lower()
+            token = rest.strip()
+            name, sep, rest = token.partition(":")
+        if sep:
+            pairs.append((agent, name.strip().lower()))
+        else:
+            pairs.extend((agent, word) for word in token.lower().split())
+    return pairs
 
 
 def has_noindex(value: str | None) -> bool:
-    if not value:
-        return False
-    return bool(_NOINDEX_DIRECTIVE.search(value))
+    """True when the value carries noindex or none, for any user agent."""
+    return any(d in NOINDEX_DIRECTIVES for _, d in robots_directives(value))
 
 
 def check_robots(
     head: dict[str, Any],
-    response_headers: dict[str, str],
+    x_robots_tag: list[str],
     should_index: bool,
     report: PageReport,
+    page_url: str | None = None,
 ) -> None:
-    """Check robots directives in meta tags and X-Robots-Tag header."""
+    """Check robots directives in meta tags and X-Robots-Tag headers."""
+    page_url = page_url or report.url
     meta_noindex = has_noindex(head.get("robots")) or has_noindex(
         head.get("googlebot")
     )
-    header_value = response_headers.get("x-robots-tag", "")
-    header_noindex = has_noindex(header_value)
+    header_noindex = any(has_noindex(v) for v in x_robots_tag)
+    header_value = ", ".join(x_robots_tag)
 
     has_any_noindex = meta_noindex or header_noindex
 
@@ -378,34 +573,22 @@ def check_robots(
         )
 
     # Failure Mode 5: noindex page with canonical pointing elsewhere.
-    if (
-        has_any_noindex
-        and head.get("canonical")
-        and head.get("canonical_count") == 1
-    ):
-        # Self-canonical on a noindex page is fine. Canonical pointing to
-        # a different URL on a noindex page is the conflict.
-        try:
-            from urllib.parse import urldefrag
-            page_normalized, _ = urldefrag(
-                report.url.rstrip("/")
-            )
-            canonical_normalized, _ = urldefrag(
-                head["canonical"].rstrip("/")
-            )
-            if page_normalized != canonical_normalized:
-                report.findings.append(
-                    Finding(
-                        severity="high",
-                        rule="noindex_with_external_canonical",
-                        message="Page is noindex and has a canonical pointing to a different URL. "
-                        "Google will not consolidate signals to the canonical target. "
-                        "Use a 301 redirect instead if signal consolidation is the intent.",
-                        detail=f"canonical: {head['canonical']}",
-                    )
+    # Self-canonical on a noindex page is fine. The canonical is resolved
+    # against the final page URL, so a relative self-canonical or one
+    # reached through a redirect is still recognised as self.
+    if has_any_noindex and head.get("canonical") and head.get("canonical_count") == 1:
+        target = urljoin(page_url, head["canonical"])
+        if normalize_url(target) != normalize_url(page_url):
+            report.findings.append(
+                Finding(
+                    severity="high",
+                    rule="noindex_with_external_canonical",
+                    message="Page is noindex and has a canonical pointing to a different URL. "
+                    "Google will not consolidate signals to the canonical target. "
+                    "Use a 301 redirect instead if signal consolidation is the intent.",
+                    detail=f"canonical: {head['canonical']}",
                 )
-        except Exception:
-            pass
+            )
 
 
 def check_description(head: dict[str, Any], report: PageReport) -> None:
@@ -438,7 +621,7 @@ def check_charset(head: dict[str, Any], report: PageReport) -> None:
             Finding(
                 severity="low",
                 rule="missing_charset",
-                message="Page has no <meta charset>. Browsers fall back to "
+                message="Page declares no charset in <meta charset> or <meta http-equiv>. Browsers fall back to "
                 "heuristics or the HTTP header, which can mangle non-ASCII text.",
             )
         )
@@ -524,19 +707,24 @@ def audit(
     """Run the full audit for a URL."""
     report = PageReport(url=url)
     try:
-        status, body, headers = fetch(url)
-        report.status_code = status
-        report.fetched = True
-    except Exception as exc:
+        fetched = fetch(url)
+    except requests.RequestException as exc:
         report.error = str(exc)
         return report
 
-    soup = BeautifulSoup(body, "html.parser")
-    head = get_head_data(soup)
+    report.status_code = fetched.status
+    report.final_url = fetched.url
+    if fetched.status >= 400:
+        # An error page's <head> says nothing about the real page.
+        report.error = f"HTTP {fetched.status}"
+        return report
+    report.fetched = True
+
+    head = get_head_data(parse(fetched.body, fetched.charset))
 
     check_title(head, report)
-    check_canonical(url, head, report, check_canonical_status)
-    check_robots(head, headers, should_index, report)
+    check_canonical(fetched.url, head, report, check_canonical_status)
+    check_robots(head, fetched.x_robots_tag, should_index, report, page_url=fetched.url)
     check_description(head, report)
     check_open_graph(head, report)
     check_viewport(head, report)
@@ -545,8 +733,50 @@ def audit(
     return report
 
 
+def read_targets(path: str) -> list[tuple[str, bool]]:
+    """Read (url, should_index) pairs from a urls file. Raises OSError
+    or UnicodeDecodeError when the file cannot be read."""
+    targets: list[tuple[str, bool]] = []
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Optional second whitespace-separated token: 'noindex' marks
+        # the URL as intentionally non-indexable.
+        parts = line.split(None, 1)
+        should_index = not (len(parts) == 2 and parts[1].strip().lower() == "noindex")
+        targets.append((parts[0], should_index))
+    return targets
+
+
+def positive_int(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be 1 or more")
+    return number
+
+
+def status_label(report: PageReport) -> str:
+    if not report.fetched:
+        return "ERROR"
+    return "FAIL" if report.to_dict()["counts"]["high"] else "OK"
+
+
+def exit_code(reports: list[PageReport]) -> int:
+    """1 if any page has a high finding, else 2 if any page could not
+    be audited, else 0."""
+    labels = [status_label(r) for r in reports]
+    if "FAIL" in labels:
+        return 1
+    if "ERROR" in labels:
+        return 2
+    return 0
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--url", help="Single URL to audit.")
     source.add_argument(
@@ -559,15 +789,15 @@ def main() -> int:
     )
     parser.add_argument(
         "--limit",
-        type=int,
+        type=positive_int,
         default=None,
-        help="Cap on the number of URLs to audit (useful with --sitemap).",
+        help="Audit only the first N URLs (useful with --sitemap).",
     )
     parser.add_argument(
         "--check-canonical-status",
         action="store_true",
-        help="Also verify that each canonical URL returns HTTP 200. "
-        "Slow on large URL sets.",
+        help="Also verify that each canonical URL returns HTTP 200 itself, "
+        "without redirecting. Slow on large URL sets.",
     )
     parser.add_argument(
         "--expect-noindex",
@@ -590,20 +820,24 @@ def main() -> int:
     if args.url:
         targets = [(args.url, not args.expect_noindex)]
     elif args.urls_file:
-        for line in Path(args.urls_file).read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            # Optional second whitespace-separated token: 'noindex' marks
-            # the URL as intentionally non-indexable.
-            parts = line.split(None, 1)
-            url = parts[0]
-            should_index = not (len(parts) == 2 and parts[1].strip().lower() == "noindex")
-            targets.append((url, should_index))
+        try:
+            targets = read_targets(args.urls_file)
+        except (OSError, UnicodeDecodeError) as exc:
+            parser.error(f"cannot read --urls-file {args.urls_file}: {exc}")
+        if not targets:
+            parser.error(f"--urls-file {args.urls_file} lists no URLs")
         if args.limit:
             targets = targets[: args.limit]
     else:
-        targets = [(url, True) for url in parse_sitemap(args.sitemap, limit=args.limit)]
+        try:
+            urls = parse_sitemap(args.sitemap, limit=args.limit)
+        except (requests.RequestException, etree.XMLSyntaxError) as exc:
+            print(f"head-audit: cannot read sitemap {args.sitemap}: {exc}", file=sys.stderr)
+            return 2
+        if not urls:
+            print(f"head-audit: sitemap {args.sitemap} lists no URLs", file=sys.stderr)
+            return 2
+        targets = [(url, True) for url in urls]
 
     reports = []
     for url, should_index in targets:
@@ -614,11 +848,8 @@ def main() -> int:
         )
         reports.append(report)
         counts = report.to_dict()["counts"]
-        status = "OK" if counts["high"] == 0 else "FAIL"
-        print(
-            f"{status}\t{url}\th={counts['high']} m={counts['medium']} l={counts['low']}",
-            file=sys.stderr,
-        )
+        summary = report.error or f"h={counts['high']} m={counts['medium']} l={counts['low']}"
+        print(f"{status_label(report)}\t{url}\t{summary}", file=sys.stderr)
 
     out = {
         "reports": [r.to_dict() for r in reports],
@@ -644,7 +875,7 @@ def main() -> int:
     else:
         print(output_text)
 
-    return 1 if out["summary"]["high_severity_total"] > 0 else 0
+    return exit_code(reports)
 
 
 if __name__ == "__main__":
