@@ -55,7 +55,9 @@ function clampTitle(value: string): string {
 export async function GET(request: Request): Promise<ImageResponse> {
   const { searchParams } = new URL(request.url);
   const title = clampTitle(searchParams.get('title') ?? 'Default Title');
-  const author = searchParams.get('author') ?? '';
+  const author = clampTitle(searchParams.get('author') ?? '');
+  // No author means no separator, rather than a dangling "· OutdoorGear".
+  const byline = author ? `${author} · OutdoorGear` : 'OutdoorGear';
 
   return new ImageResponse(
     (
@@ -86,7 +88,7 @@ export async function GET(request: Request): Promise<ImageResponse> {
             marginTop: 'auto',
           }}
         >
-          {author} · OutdoorGear
+          {byline}
         </div>
       </div>
     ),

@@ -1,7 +1,7 @@
 // generate-title.example.test.js
 //
 // Tests for generate-title.example.js. Uses Node's built-in test
-// runner (node:test), available in Node 18+, so this file ships
+// runner (node:test), available in Node 20+, so this file ships
 // with no extra test-framework dependency.
 //
 // Run:
@@ -100,5 +100,28 @@ describe('generateTitle', () => {
       SITE,
     );
     assert.equal(title, `Merrell Moab 3 GTX | ${SITE.brand}`);
+  });
+
+  it('uses the singular for a category with one product', () => {
+    assert.equal(
+      generateTitle({ type: 'category', categoryName: 'Boots', count: 1 }, SITE),
+      'Boots, 1 Product | OutdoorGear',
+    );
+    assert.equal(
+      generateTitle({ type: 'category', categoryName: 'Boots', count: 2 }, SITE),
+      'Boots, 2 Products | OutdoorGear',
+    );
+  });
+
+  it('collapses stray whitespace from CMS fields', () => {
+    const title = generateTitle(
+      { type: 'product', productName: '  Merrell\n Moab 3 ', category: "Women's  Boots " },
+      SITE,
+    );
+    assert.equal(title, "Merrell Moab 3, Women's Boots | OutdoorGear");
+  });
+
+  it('treats a whitespace-only tagline as missing', () => {
+    assert.equal(generateTitle({ type: 'home' }, { brand: 'OutdoorGear', tagline: '  ' }), 'OutdoorGear');
   });
 });
